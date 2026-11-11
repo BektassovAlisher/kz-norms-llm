@@ -104,9 +104,61 @@ def clause(clause_id: str) -> None:
 
 
 @app.command()
-def index() -> None:
+def index(dense: bool = typer.Option(True, help="--no-dense: только BM25, без GPU")) -> None:
     """Построить BM25 и векторный индекс в Qdrant."""
-    _todo("index")
+    import time
+
+    from kznorms.config import load_yaml
+    from kznorms.paths import BM25_DIR, CHUNKS_JSONL
+    from kznorms.retrieval.bm25 import BM25Index
+    from kznorms.retrieval.retriever import build_chunks, load_clauses, open_dense, save_chunks
+
+    cfg = load_yaml("retrieval")
+    clauses = load_clauses()
+    chunks = build_chunks(cfg, clauses)
+    save_chunks(chunks)
+    n_split = len({c.clause_id for c in chunks if not c.chunk_id.endswith("#0")})
+    print(f"{len(clauses)} пунктов → {len(chunks)} фрагментов ({n_split} пунктов разрезано)")
+    print(f"  → {CHUNKS_JSONL}")
+
+    t = time.perf_counter()
+    BM25Index.build(chunks).save(BM25_DIR)
+    print(f"BM25: {time.perf_counter() - t:.1f} с → {BM25_DIR}")
+
+    if dense:
+        t = time.perf_counter()
+        idx = open_dense(cfg)
+        texts = [c.text for c in chunks]
+        trunc = idx.embedder.count_truncated(texts)
+        if trunc:
+            print(f"[yellow]{trunc} фрагментов длиннее {cfg['max_seq_length']} токенов[/yellow]")
+        idx.build(chunks, batch_size=cfg["batch_size"])
+        idx.close()
+        print(f"Qdrant ({cfg['embedder']}): {time.perf_counter() - t:.1f} с")
+    print("[green]готово[/green]")
+
+
+@app.command()
+def search(
+    query: str,
+    mode: str = typer.Option(None, help="bm25 | dense | hybrid | hybrid_rerank"),
+    k: int = typer.Option(None, help="сколько пунктов показать (по умолчанию final_k)"),
+    full: bool = typer.Option(False, help="показать фрагмент целиком"),
+) -> None:
+    """Поиск пунктов: kznorms search "ширина марша лестницы" --mode bm25"""
+    from kznorms.retrieval.retriever import Retriever
+
+    r = Retriever()
+    r.warmup(mode)
+    hits = r.retrieve(query, k=k, mode=mode)
+    for i, h in enumerate(hits, 1):
+        body = h.chunk.split("\n", 1)[-1]
+        body = body if full else body[:300] + ("…" if len(body) > 300 else "")
+        print(f"\n[bold]{i}. {h.clause.clause_id}[/bold]  score={h.score:.4f}")
+        print(f"   [dim]{h.clause.doc_code} · {h.clause.section}[/dim]")
+        typer.echo(f"   {body}")
+    t = ", ".join(f"{name} {ms:.0f} мс" for name, ms in r.timings_ms.items())
+    print(f"\n[dim]режим {mode or r.cfg['mode']}: {t}[/dim]")
 
 
 @app.command()

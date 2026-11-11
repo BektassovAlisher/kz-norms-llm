@@ -16,3 +16,6 @@ REPORTS = ROOT / "reports"
 
 SOURCES_CSV = DATA / "sources.csv"
 CLAUSES_JSONL = PROCESSED / "clauses.jsonl"
+INDEX = ARTIFACTS / "index"  # chunks.jsonl + BM25
+CHUNKS_JSONL = INDEX / "chunks.jsonl"
+BM25_DIR = INDEX / "bm25"

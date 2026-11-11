@@ -27,6 +27,7 @@ dependencies = [
     "pymorphy3>=2.0",
     "pymorphy3-dicts-ru>=2.4",
     "sentence-transformers>=3.0",
+    "torch>=2.4",
     "qdrant-client>=1.10",
     # LLM-клиент (llama-server и API учителя — OpenAI-совместимые)
     "openai>=1.40",
@@ -58,6 +59,16 @@ dev = [
     "ruff>=0.5",
     "ipykernel>=6.29",
 ]
+
+# На Windows PyPI отдаёт torch только под CPU — берём CUDA-сборку из индекса PyTorch.
+# В Linux/WSL2 колесо с PyPI уже собрано с CUDA, там ничего не меняем.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu130", marker = "sys_platform == 'win32'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]

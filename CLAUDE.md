@@ -20,4 +20,6 @@ uv run kznorms ingest         # data/raw → data/processed/clauses.jsonl
 uv run kznorms stats          # проверка нарезки
 uv run kznorms clause <id>    # показать пункт, например zhilye-zdaniya:6.2.10
 uv run kznorms peek <slug>    # блоки после парсинга
+uv run kznorms index          # чанки + BM25 + BGE-M3 → Qdrant (artifacts/), --no-dense без GPU
+uv run kznorms search "<вопрос>" --mode bm25|dense|hybrid|hybrid_rerank --k 5
 ```

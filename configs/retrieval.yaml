@@ -2,6 +2,11 @@ mode: hybrid_rerank          # bm25 | dense | hybrid | hybrid_rerank
 embedder: BAAI/bge-m3
 reranker: BAAI/bge-reranker-v2-m3
 collection: clauses
+qdrant_path: artifacts/qdrant_local  # встроенный Qdrant; пусто → сервер из QDRANT_URL (.env)
 candidates_k: 30             # сколько берём из гибридного поиска
 final_k: 5                   # сколько отдаём в LLM после реранкера
 rrf_k: 60
+chunk_max_chars: 1200        # таблицы с цифрами ≈ 2.5 симв/токен: 1500 уже не влезало в 512
+chunk_overlap: 200
+max_seq_length: 512
+batch_size: 16
