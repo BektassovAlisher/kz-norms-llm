@@ -11,9 +11,40 @@ def _todo(step: str) -> None:
 
 
 @app.command()
-def ingest() -> None:
-    """Скачать нормы из sources.csv, распарсить и порезать на пункты."""
-    _todo("ingest")
+def ingest(delay: float = 2.0) -> None:
+    """Скачать нормы из sources.csv и распарсить в блоки (data/interim/)."""
+    from kznorms.ingest.download import download_all, load_sources, raw_path
+    from kznorms.ingest.parse_docx import parse_docx
+    from kznorms.paths import INTERIM
+
+    sources = load_sources()
+    download_all(sources, delay=delay)
+
+    INTERIM.mkdir(parents=True, exist_ok=True)
+    for src in sources:
+        path = raw_path(src)
+        if not path.exists():
+            continue
+        if src.format != "docx":
+            print(f"[yellow]пропуск[/yellow] {src.doc_slug}: парсер {src.format} ещё не готов")
+            continue
+        blocks = parse_docx(path)
+        out = INTERIM / f"{src.doc_slug}.jsonl"
+        out.write_text("\n".join(b.model_dump_json() for b in blocks), encoding="utf-8")
+        n_tables = sum(b.type == "table" for b in blocks)
+        print(f"{src.doc_slug}: {len(blocks)} блоков, из них таблиц: {n_tables}")
+
+
+@app.command()
+def peek(slug: str, n: int = 40, start: int = 0) -> None:
+    """Показать блоки документа из data/interim/ — проверить парсинг глазами."""
+    from kznorms.paths import INTERIM
+    from kznorms.schemas import Block
+
+    lines = (INTERIM / f"{slug}.jsonl").read_text(encoding="utf-8").splitlines()
+    for line in lines[start : start + n]:
+        b = Block.model_validate_json(line)
+        typer.echo(f"[{b.type}] {b.text[:150]}")
 
 
 @app.command()

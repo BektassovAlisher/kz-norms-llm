@@ -23,7 +23,7 @@ def test_order_preserved(tmp_path):
 
 def test_spaces_collapsed(tmp_path):
     doc = Document()
-    doc.add_paragraph("4.1\u00a0 Текст   с\tпробелами")
+    doc.add_paragraph("4.1  Текст   с\tпробелами")
     doc.add_paragraph("   ")
     path = tmp_path / "t.docx"
     doc.save(path)

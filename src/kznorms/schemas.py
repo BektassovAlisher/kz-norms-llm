@@ -11,7 +11,7 @@ class Source(BaseModel):
     doc_slug: str
     doc_code: str
     title: str
-    url: str
+    url: str = ""  # пусто — файл кладётся в data/raw/ вручную
     format: Literal["docx", "html", "pdf"]
     status: str = "действует"
     version_date: str = ""
