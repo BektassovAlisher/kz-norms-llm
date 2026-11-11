@@ -161,6 +161,156 @@ def search(
     print(f"\n[dim]режим {mode or r.cfg['mode']}: {t}[/dim]")
 
 
+@app.command("qa-check")
+def qa_check() -> None:
+    """Проверить разметку data/eval/qa_test.jsonl: id пунктов, дубли, баланс."""
+    from collections import Counter
+
+    from kznorms.eval.eval_retrieval import QA_TEST, load_items
+    from kznorms.retrieval.retriever import load_clauses
+
+    items = load_items()
+    known = {c.clause_id for c in load_clauses()}
+    errors = []
+    for id_, n in Counter(it.id for it in items).items():
+        if n > 1:
+            errors.append(f"{id_}: id повторяется {n} раз")
+    for q, n in Counter(it.question.strip().lower() for it in items).items():
+        if n > 1:
+            errors.append(f"вопрос повторяется {n} раз: {q}")
+    for it in items:
+        if it.answerable and not it.gold_clause_ids:
+            errors.append(f"{it.id}: answerable, но нет gold_clause_ids")
+        if not it.answerable and it.gold_clause_ids:
+            errors.append(f"{it.id}: без ответа, но указаны gold_clause_ids")
+        for g in it.gold_clause_ids:
+            if g not in known:
+                errors.append(f"{it.id}: пункта {g} нет в clauses.jsonl (перенарезка?)")
+
+    ans = [it for it in items if it.answerable]
+    docs = Counter(g.split(":")[0] for it in ans for g in it.gold_clause_ids[:1])
+    print(f"{QA_TEST}: {len(items)} вопросов, проверено руками: {sum(it.verified for it in items)}")
+    print(
+        f"  с ответом {len(ans)}, без ответа {len(items) - len(ans)} "
+        f"({(len(items) - len(ans)) / max(len(items), 1):.0%}, цель ≈25%)"
+    )
+    print(f"  по документам: {dict(docs)}")
+    print(f"  по типам: {dict(Counter(it.type for it in items))}")
+    for e in errors:
+        print(f"[red]ошибка[/red] {e}")
+    if errors:
+        raise typer.Exit(1)
+    print("[green]разметка в порядке[/green]")
+
+
+@app.command("qa-review")
+def qa_review(all_: bool = typer.Option(False, "--all", help="включая уже проверенные")) -> None:
+    """Пройти черновые вопросы руками: gold-пункты + что нашёл поиск → подтвердить/поправить."""
+    from kznorms.eval.eval_retrieval import load_items, save_items
+    from kznorms.retrieval.retriever import Retriever
+
+    items = load_items()
+    todo = [it for it in items if all_ or not it.verified]
+    if not todo:
+        print("[green]все вопросы проверены[/green]")
+        return
+    r = Retriever()
+    r.warmup("hybrid_rerank")
+    help_ = (
+        "[y] верно  [g] заменить gold  [a] заменить ответ  [u] без ответа  "
+        "[d] удалить  [s] пропустить  [q] выйти"
+    )
+    for n, it in enumerate(todo, 1):
+        print(f"\n[bold]━━ {n}/{len(todo)} · {it.id} · {it.type}[/bold]")
+        print(f"[bold cyan]{it.question}[/bold cyan]")
+        if it.note:
+            print(f"[dim]заметка: {it.note}[/dim]")
+        if it.answerable:
+            print(f"эталон: {it.gold_answer}")
+        for g in it.gold_clause_ids:
+            c = r.clauses.get(g)
+            typer.echo(f"\n  GOLD {g}\n  {c.text if c else '!!! пункта нет в корпусе'}")
+        print("\n  [dim]поиск hybrid_rerank (★ = gold):[/dim]")
+        for h in r.retrieve(it.question, k=5):
+            mark = "★" if h.clause.clause_id in it.gold_clause_ids else " "
+            body = h.chunk.split("\n", 1)[-1][:220].replace("\n", " ")
+            typer.echo(f"  {mark} {h.score:.3f} {h.clause.clause_id}: {body}")
+        while True:
+            cmd = typer.prompt(help_, default="s").strip().lower()
+            if cmd == "y":
+                it.verified = True
+            elif cmd == "g":
+                ids = typer.prompt("gold через пробел").split()
+                if unknown := [g for g in ids if g not in r.clauses]:
+                    print(f"[red]нет таких пунктов: {unknown}[/red]")
+                    continue
+                it.gold_clause_ids, it.answerable = ids, True
+                continue  # покажем меню снова: можно сразу подтвердить
+            elif cmd == "a":
+                it.gold_answer = typer.prompt("эталонный ответ")
+                continue
+            elif cmd == "u":
+                it.answerable, it.gold_clause_ids, it.gold_answer = False, [], ""
+                continue
+            elif cmd == "d":
+                items.remove(it)
+            elif cmd == "q":
+                save_items(items)
+                return
+            elif cmd != "s":
+                continue
+            break
+        save_items(items)  # после каждого вопроса — ничего не потеряется при выходе
+    print("[green]готово[/green]")
+
+
+@app.command("eval-retrieval")
+def eval_retrieval(
+    drafts: bool = typer.Option(False, help="учитывать и непроверенные вопросы"),
+    modes: str = typer.Option("bm25,dense,hybrid,hybrid_rerank", help="через запятую"),
+) -> None:
+    """Hit@5, Recall@5, MRR@10 по режимам → reports/retrieval.md."""
+    from rich.table import Table
+
+    from kznorms.eval.eval_retrieval import evaluate, load_items, to_markdown, write_misses
+    from kznorms.paths import REPORTS
+    from kznorms.retrieval.retriever import Retriever
+
+    items = [it for it in load_items() if drafts or it.verified]
+    if not items:
+        print(
+            "[yellow]нет проверенных вопросов[/yellow]: пройди `kznorms qa-review` "
+            "или запусти с --drafts"
+        )
+        raise typer.Exit(1)
+    mode_list = [m.strip() for m in modes.split(",")]
+    r = Retriever()
+    r.warmup("hybrid_rerank" if "hybrid_rerank" in mode_list else mode_list[-1])
+    results = [evaluate(r, items, m) for m in mode_list]
+
+    n_ans = sum(it.answerable for it in items)
+    table = Table(title=f"Поиск: {n_ans} вопросов с ответом" + (" (черновик)" if drafts else ""))
+    for col in ("режим", "Hit@5", "Recall@5", "MRR@10", "p50, мс"):
+        table.add_column(col, justify="right")
+    for res in results:
+        table.add_row(
+            res.mode,
+            f"{res.hit5:.3f}",
+            f"{res.recall5:.3f}",
+            f"{res.mrr10:.3f}",
+            f"{res.latency_ms_p50:.0f}",
+        )
+    print(table)
+
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    note = "ЧЕРНОВИК: в выборке есть непроверенные вопросы." if drafts else "Только verified."
+    (REPORTS / "retrieval.md").write_text(
+        to_markdown(results, n_ans, len(items) - n_ans, note), encoding="utf-8"
+    )
+    write_misses(results, REPORTS / "retrieval_misses.json")
+    print(f"→ {REPORTS / 'retrieval.md'}")
+
+
 @app.command()
 def synth() -> None:
     """Сгенерировать и отфильтровать синтетический SFT-датасет."""

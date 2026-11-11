@@ -29,6 +29,59 @@ def test_split_embedded_clause():
     ]
 
 
+def test_split_embedded_amended_clause():
+    text = "Не устанавливать на двери. *5.3.3.10 Входы следует выделять."
+    assert split_embedded(text, "5.3.3.9") == [
+        "Не устанавливать на двери.",
+        "*5.3.3.10 Входы следует выделять.",
+    ]
+
+
+def test_segment_splits_clause_embedded_in_numbered_paragraph():
+    clauses = segment(
+        blocks(
+            "5 ТРЕБОВАНИЯ",
+            "5.1 Входы",
+            "5.1.1 Первый пункт.",
+            "5.1.2 Номера не ставить на двери. *5.1.3 Входы следует выделять.",
+            "5.1.4 Четвёртый.",
+        ),
+        SRC,
+    )
+    assert [c.number for c in clauses] == ["5.1.1", "5.1.2", "5.1.3", "5.1.4"]
+
+
+def test_split_embedded_asterisk_after_number():
+    text = "Пороги не более 15 см. 5.5.30* Двери выходов из квартир."
+    assert split_embedded(text, "5.5.29") == [
+        "Пороги не более 15 см.",
+        "5.5.30* Двери выходов из квартир.",
+    ]
+    clauses = segment(
+        blocks(
+            "5 ТРЕБОВАНИЯ",
+            "5.1.1 Пороги не более 15 см. 5.1.2* Двери выходов из квартир.",
+            "5.1.3 Ещё.",
+        ),
+        SRC,
+    )
+    assert [c.number for c in clauses] == ["5.1.1", "5.1.2", "5.1.3"]
+    assert clauses[1].text == "Двери выходов из квартир."
+
+
+def test_end_matter_is_cut():
+    clauses = segment(
+        blocks(
+            "5 ТРЕБОВАНИЯ",
+            "5.1 Входы",
+            "5.1.1 Последний пункт. УДК 728.4 МКС 93.040.10 Ключевые слова: доступность",
+            "Ещё что-то после выходных данных",
+        ),
+        SRC,
+    )
+    assert clauses[-1].text == "Последний пункт."
+
+
 def test_reference_is_not_split():
     text = "Требования приведены в п. 5.3.2 Настоящего свода."
     assert split_embedded(text, "5.3.1") == [text]

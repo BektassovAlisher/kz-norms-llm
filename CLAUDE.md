@@ -22,4 +22,7 @@ uv run kznorms clause <id>    # показать пункт, например zh
 uv run kznorms peek <slug>    # блоки после парсинга
 uv run kznorms index          # чанки + BM25 + BGE-M3 → Qdrant (artifacts/), --no-dense без GPU
 uv run kznorms search "<вопрос>" --mode bm25|dense|hybrid|hybrid_rerank --k 5
+uv run kznorms qa-check       # проверка разметки data/eval/qa_test.jsonl
+uv run kznorms qa-review      # проверить черновые вопросы руками
+uv run kznorms eval-retrieval [--drafts]   # метрики поиска → reports/retrieval.md
 ```

@@ -13,13 +13,16 @@ from collections import deque
 
 from kznorms.schemas import Block, Clause, Source
 
-CLAUSE = re.compile(r"^((?:[А-ЯA-Z]\.)?\d+(?:\.\d+)+|[А-ЯA-Z]\.\d+)\.?(?:\s+(.*))?$", re.S)
+# «*» до или после номера («*5.3.3.10», «5.5.30*») — пометка изменённого пункта
+CLAUSE = re.compile(r"^((?:[А-ЯA-Z]\.)?\d+(?:\.\d+)+|[А-ЯA-Z]\.\d+)\.?\*?(?:\s+(.*))?$", re.S)
 SECTION = re.compile(r"^(\d+)\.?\s+([А-ЯЁ].*)$", re.S)
 APPENDIX = re.compile(r"^(?:ПРИЛОЖЕНИЕ|Приложение)\s+([А-ЯA-Z])\b(.*)$", re.S)
-EMBEDDED = re.compile(r"(?<=[.;:])\s+((?:[А-ЯA-Z]\.)?\d+(?:\.\d+)+)\.?\s+(?=[А-ЯЁ])")
+EMBEDDED = re.compile(r"(?<=[.;:])\s+\*?((?:[А-ЯA-Z]\.)?\d+(?:\.\d+)+)\.?\*?\s+(?=[А-ЯЁ])")
 REF_WORDS = ("п.", "пп.", "пункт", "пункта", "пунктом", "пунктов", "пунктах", "табл.", "таблицы")
 SKIP_SECTIONS = ("НОРМАТИВНЫЕ ССЫЛКИ",)
 EXCLUDED = re.compile(r"^\(?\s*исключ", re.IGNORECASE)
+# Выходные данные в конце издания («УДК 728.4 МКС 93.040.10 Ключевые слова: …») — конец норм
+END_MATTER = re.compile(r"\b(?:УДК\s+\d|МКС\s+\d+\.\d+)")
 
 
 def split_number(number: str) -> tuple[str, list[int]]:
@@ -82,7 +85,15 @@ def segment(blocks: list[Block], src: Source) -> list[Clause]:
     while queue:
         # «*2 НОРМАТИВНЫЕ ССЫЛКИ» — звёздочкой помечены изменённые разделы и пункты
         text = queue.popleft().lstrip("*").strip()
-        parts = split_embedded(text, last_number)
+        if m := END_MATTER.search(text):
+            text, _ = text[: m.start()].strip(), queue.clear()
+            if not text:
+                continue
+        # Если абзац сам начинается с пункта («5.3.3.9 … *5.3.3.10 …»), вложенный номер
+        # сравниваем с ним, а не с предыдущим пунктом — иначе 5.3.3.8 → 5.3.3.10 выглядит пропуском.
+        head = CLAUSE.match(text)
+        own = head.group(1) if head and is_successor(last_number, head.group(1), 3) else None
+        parts = split_embedded(text, own or last_number)
         if len(parts) > 1:
             queue.appendleft(parts[1])
             text = parts[0]

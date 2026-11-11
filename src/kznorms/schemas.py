@@ -72,3 +72,5 @@ class EvalItem(BaseModel):
     gold_answer: str = ""
     type: str = ""
     lang: Literal["ru", "kk"] = "ru"
+    verified: bool = False  # проверено человеком; в итоговые метрики идут только verified
+    note: str = ""  # почему так размечено: ловушки, спорные места
