@@ -1,0 +1,21 @@
+model: unsloth/Qwen3-4B-Instruct-2507
+load_in_4bit: true
+max_seq_length: 3072
+lora:
+  r: 16
+  alpha: 16
+  dropout: 0.0
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+train:
+  epochs: 2
+  lr: 2.0e-4
+  scheduler: cosine
+  warmup_ratio: 0.05
+  batch_size: 2
+  grad_accum: 8
+  optim: adamw_8bit
+  bf16: true
+  eval_steps: 100
+train_on_responses_only: true
+output_dir: artifacts/qwen3-4b-lora
+gguf_quant: q4_k_m

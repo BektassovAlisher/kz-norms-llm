@@ -1,0 +1,23 @@
+# окружение
+.venv/
+__pycache__/
+*.pyc
+.env
+.ruff_cache/
+.pytest_cache/
+.ipynb_checkpoints/
+wandb/
+
+# данные и модели воспроизводятся скриптами
+data/raw/*
+data/interim/*
+data/processed/*
+data/synthetic/*
+data/sft/*
+artifacts/*
+reports/*
+!**/.gitkeep
+
+# ручная разметка и список источников — коммитим
+!data/eval/
+!data/sources.csv

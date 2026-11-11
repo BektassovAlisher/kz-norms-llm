@@ -1,0 +1,79 @@
+[project]
+name = "kznorms"
+version = "0.1.0"
+description = "Локальная LLM (Qwen3-4B + QLoRA) для ответов по строительным нормам РК со ссылками на пункты"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    # базовое
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "typer>=0.12",
+    "rich>=13.7",
+    "tqdm>=4.66",
+    "httpx>=0.27",
+    "tenacity>=8.3",
+    "numpy>=1.26",
+    "pandas>=2.2",
+    # парсинг документов
+    "python-docx>=1.1",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.2",
+    "pymupdf>=1.24",
+    # поиск
+    "bm25s>=0.2",
+    "pymorphy3>=2.0",
+    "pymorphy3-dicts-ru>=2.4",
+    "sentence-transformers>=3.0",
+    "qdrant-client>=1.10",
+    # LLM-клиент (llama-server и API учителя — OpenAI-совместимые)
+    "openai>=1.40",
+    # сервис и демо
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "gradio>=4.40",
+    # отчёты
+    "matplotlib>=3.9",
+]
+
+[project.optional-dependencies]
+# Ставится только в WSL2/Linux с GPU: uv sync --extra train
+train = [
+    "unsloth",
+    "wandb>=0.17",
+]
+# Этап 2: агент проверки фрагментов проекта
+agent = [
+    "langgraph>=0.2",
+]
+
+[project.scripts]
+kznorms = "kznorms.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "ruff>=0.5",
+    "ipykernel>=6.29",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kznorms"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

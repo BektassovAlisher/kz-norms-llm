@@ -1,0 +1,8 @@
+questions_per_clause: 3
+question_types: [numeric, permission, colloquial, multi_clause]
+kazakh_share: 0.1
+not_found_share: 0.25        # доля примеров без gold-пункта в контексте
+context_k: 5
+split: {train: 0.7, val: 0.1, test: 0.2}   # делим ДОКУМЕНТЫ, не примеры
+dedup_cosine: 0.95
+seed: 42

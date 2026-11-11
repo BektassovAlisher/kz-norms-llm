@@ -1,0 +1,24 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333"]
+    volumes: ["./artifacts/qdrant:/qdrant/storage"]
+
+  # Подключим позже, когда будет GGUF:
+  # llm:
+  #   image: ghcr.io/ggml-org/llama.cpp:server-cuda
+  #   command: -m /models/base.gguf --lora /models/adapter.gguf --port 8080 -c 8192
+  #   volumes: ["./artifacts/gguf:/models"]
+  #   ports: ["8080:8080"]
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+  # api:
+  #   build: .
+  #   command: uvicorn kznorms.api.main:app --host 0.0.0.0 --port 8000
+  #   ports: ["8000:8000"]
+  # ui:
+  #   build: .
+  #   command: python ui/app.py
+  #   ports: ["7860:7860"]

@@ -1,0 +1,10 @@
+model: BAAI/bge-m3
+loss: CachedMultipleNegativesRankingLoss
+mini_batch_size: 16
+batch_size: 128
+hard_negatives_from: bm25    # top-10 без gold
+max_seq_length: 512
+epochs: 1
+lr: 1.0e-5
+bf16: true
+output_dir: artifacts/bge-m3-ft
