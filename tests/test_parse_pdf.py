@@ -1,4 +1,10 @@
-from kznorms.ingest.parse_pdf import find_running_lines, is_heading, join_lines, page_lang
+from kznorms.ingest.parse_pdf import (
+    find_running_lines,
+    is_heading,
+    join_lines,
+    page_lang,
+    visual_rows,
+)
 
 
 def test_page_lang():
@@ -33,3 +39,32 @@ def test_join_lines():
 def test_is_heading():
     assert is_heading("5 ТРЕБОВАНИЯ К РАБОЧИМ ХАРАКТЕРИСТИКАМ")
     assert not is_heading("5.4 Лифты и лифтовые шахты")
+
+
+def test_visual_rows_number_below_first_line():
+    # реальная геометрия из СП РК 2.02-101: номер на 2.5 pt ниже первой строки и в потоке после неё
+    frags = [
+        ((56.7, 116.6, 400, 132.3), "по требованиям технологии хранения."),
+        (
+            (118.0, 132.4, 500, 148.2),
+            " Помещения класса Ф1.3 (квартиры), размещенные на двух этажах, при ",
+        ),
+        ((85.0, 135.0, 115, 147.0), "5.1.3.3"),
+        ((56.7, 148.3, 500, 164.0), "расположении верхнего этажа квартиры"),
+        ((56.7, 787.8, 70, 799.8), "6"),
+    ]
+    assert visual_rows(frags) == [
+        "по требованиям технологии хранения.",
+        "5.1.3.3 Помещения класса Ф1.3 (квартиры), размещенные на двух этажах, при",
+        "расположении верхнего этажа квартиры",
+        "6",
+    ]
+
+
+def test_visual_rows_keeps_superscript_in_line():
+    frags = [
+        ((56.7, 100, 200, 115), "площадь 15 м"),
+        ((201, 98, 206, 106), "2"),
+        ((56.7, 116, 200, 131), "следующая строка"),
+    ]
+    assert visual_rows(frags) == ["площадь 15 м 2", "следующая строка"]

@@ -40,8 +40,38 @@ def page_lang(text: str) -> str:
     return "kk" if kk_share > 0.01 else "ru"
 
 
-def page_lines(text: str) -> list[str]:
-    return [" ".join(line.split()) for line in text.splitlines() if line.strip()]
+Fragment = tuple[tuple[float, float, float, float], str]  # (x0, y0, x1, y1), текст
+
+
+def visual_rows(fragments: list[Fragment]) -> list[str]:
+    """Собрать строки так, как их видит глаз: по вертикали, внутри строки — слева направо.
+
+    Порядок фрагментов в потоке PDF не обязан совпадать с визуальным. В пожарном СП номер
+    пункта (x=85) лежит на 2–3 pt ниже первой строки своего текста (x=118) и в потоке идёт
+    после неё — простой get_text() отдаёт «…первая строка пункта 5.1.3.7» и только потом
+    «5.1.3.7 продолжение», и все пункты раздела съезжают на одну строку.
+    Фрагменты, перекрывающиеся по высоте больше чем наполовину, — одна визуальная строка.
+    """
+    rows: list[tuple[float, float, list[tuple[float, str]]]] = []
+    for (x0, y0, _, y1), text in sorted(fragments, key=lambda f: (f[0][1] + f[0][3]) / 2):
+        if rows:
+            ry0, ry1, parts = rows[-1]
+            overlap = min(ry1, y1) - max(ry0, y0)
+            if overlap > 0.5 * min(ry1 - ry0, y1 - y0):
+                parts.append((x0, text))
+                continue
+        rows.append((y0, y1, [(x0, text)]))
+    lines = (" ".join(t for _, t in sorted(parts, key=lambda p: p[0])) for _, _, parts in rows)
+    return [" ".join(line.split()) for line in lines if line.strip()]
+
+
+def page_lines(page: pymupdf.Page) -> list[str]:
+    fragments: list[Fragment] = [
+        (tuple(line["bbox"]), "".join(span["text"] for span in line["spans"]))
+        for block in page.get_text("dict")["blocks"]
+        for line in block.get("lines", [])
+    ]
+    return visual_rows(fragments)
 
 
 def find_running_lines(pages: list[list[str]], min_share: float = 0.3) -> set[str]:
@@ -84,7 +114,7 @@ def join_lines(lines: list[str]) -> list[str]:
 
 def parse_pdf(path: Path) -> list[Block]:
     doc = pymupdf.open(str(path))
-    ru_pages = [page_lines(p.get_text()) for p in doc if page_lang(p.get_text()) == "ru"]
+    ru_pages = [page_lines(p) for p in doc if page_lang(p.get_text()) == "ru"]
 
     running = find_running_lines(ru_pages)
     lines: list[str] = []
