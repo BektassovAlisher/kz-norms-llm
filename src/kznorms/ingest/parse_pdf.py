@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pymupdf
 
+from kznorms.ingest.segment import REF_WORDS
 from kznorms.schemas import Block
 
 KAZAKH_LETTERS = set("әғқңөұүһіӘҒҚҢӨҰҮҺІ")
@@ -98,7 +99,11 @@ def join_lines(lines: list[str]) -> list[str]:
         if paragraphs and after_heading and is_heading(line) and not line[0].isdigit():
             paragraphs[-1] += " " + line
             continue
-        starts_new = after_heading or NEW_PARAGRAPH.match(line) or is_heading(line)
+        # «…принимается по Таблице» + «В.8 как для плит»: номер в начале строки — хвост ссылки
+        after_ref = bool(paragraphs) and paragraphs[-1].rsplit(" ", 1)[-1].lower() in REF_WORDS
+        starts_new = (
+            after_heading or (NEW_PARAGRAPH.match(line) and not after_ref) or is_heading(line)
+        )
         after_heading = is_heading(line)
         if paragraphs and not starts_new:
             prev = paragraphs[-1]

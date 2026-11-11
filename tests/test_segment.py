@@ -112,3 +112,12 @@ def test_segment_basic():
     assert c.section == "3 ТРЕБОВАНИЯ / 3.1 Лестницы"  # «3.1 Лестницы» стал заголовком
     assert c.text.endswith("- не менее указанной в таблице;")  # список приклеен к пункту
     assert c.doc_code == "СН РК тест"
+
+
+def test_number_followed_by_lowercase_is_not_clause():
+    clauses = segment(
+        blocks("5 ТРЕБОВАНИЯ", "5.1.1 Принимается по таблице", "5.4 как для плит.", "5.1.2 Далее."),
+        SRC,
+    )
+    assert [c.number for c in clauses] == ["5.1.1", "5.1.2"]
+    assert clauses[0].text == "Принимается по таблице\n5.4 как для плит."
