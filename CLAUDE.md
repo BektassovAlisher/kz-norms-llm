@@ -26,4 +26,7 @@ uv run kznorms search "<вопрос>" --mode bm25|dense|hybrid|hybrid_rerank --
 uv run kznorms qa-check       # проверка разметки data/eval/qa_test.jsonl
 uv run kznorms qa-review      # проверить черновые вопросы руками
 uv run kznorms eval-retrieval [--drafts] [--all-splits]  # метрики поиска (test) → reports/retrieval.md
+uv run kznorms ask "<вопрос>"  # RAG: поиск → Qwen3-4B (llama-server :8080) → verify
+# llama-server (в отдельном терминале):
+# artifacts/llama/llama-server.exe -m artifacts/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf -c 8192 -ngl 99 --port 8080 --jinja
 ```

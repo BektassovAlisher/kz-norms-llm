@@ -60,6 +60,7 @@ class AnswerResponse(BaseModel):
     answer: Answer
     contexts: list[Clause]
     verified: bool
+    problems: list[str] = []  # что не прошло verify — для разбора ошибок
     timings_ms: dict[str, float] = {}
     model: str = ""
 

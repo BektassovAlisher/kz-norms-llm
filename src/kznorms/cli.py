@@ -450,8 +450,21 @@ def eval_() -> None:
 
 @app.command()
 def ask(question: str, model: str = "base") -> None:
-    """Задать вопрос через RAG-пайплайн."""
-    _todo(f"ask ({model}): {question}")
+    """Задать вопрос через RAG: kznorms ask "ширина марша лестницы в жилом доме" """
+    from kznorms.rag.llm_client import get_llm
+    from kznorms.rag.pipeline import RagPipeline
+
+    resp = RagPipeline(get_llm(model)).answer(question)
+    a = resp.answer
+    mark = "[green]verify ok[/green]" if resp.verified else "[red]verify не пройден[/red]"
+    print(f"[bold]{a.status}[/bold]  {mark}")
+    typer.echo(f"\n{a.answer}\n")
+    for c in a.citations:
+        typer.echo(f"  [{c.clause_id}] «{c.quote}»")  # echo, не rich: [..] — не разметка
+    for p in resp.problems:
+        typer.echo(f"  ! {p}")
+    typer.echo("\nконтекст: " + ", ".join(c.clause_id for c in resp.contexts))
+    print("[dim]" + ", ".join(f"{k} {v:.0f} мс" for k, v in resp.timings_ms.items()) + "[/dim]")
 
 
 if __name__ == "__main__":
