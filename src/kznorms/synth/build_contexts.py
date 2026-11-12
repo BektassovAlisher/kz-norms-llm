@@ -63,12 +63,23 @@ def build_example(
     return SynthExample(q=q, not_found=not_found, passages=[p.__dict__ for p in passages])
 
 
-def build_contexts(retriever, questions, allowed_docs, cfg) -> list[SynthExample]:
+def build_contexts(
+    retriever, questions, allowed_docs, cfg, cache: dict[str, SynthExample] | None = None
+) -> list[SynthExample]:
+    """Контекст для каждого вопроса; готовые (из прошлого запуска) берутся из cache.
+
+    Случайность — своя на каждый вопрос (зерно = seed + qid): тогда «not_found или нет» и
+    позиция gold не зависят от того, какие ещё вопросы в прогоне, и кэш остаётся верным.
+    """
     from rich.progress import track
 
-    rng = random.Random(cfg["seed"])
+    cache = cache or {}
     out = []
     for q in track(questions, description="контексты"):
+        if q.qid in cache and cache[q.qid].q == q:
+            out.append(cache[q.qid].model_copy(update={"answer": None, "reasons": []}))
+            continue
+        rng = random.Random(f"{cfg['seed']}:{q.qid}")
         not_found = rng.random() < cfg["not_found_share"]
         out.append(build_example(retriever, q, not_found, allowed_docs, cfg, rng))
     return out

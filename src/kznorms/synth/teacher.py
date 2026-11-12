@@ -17,7 +17,13 @@ import threading
 import time
 from pathlib import Path
 
-from openai import BadRequestError, OpenAI, RateLimitError
+from openai import (
+    APITimeoutError,
+    BadRequestError,
+    InternalServerError,
+    OpenAI,
+    RateLimitError,
+)
 
 from kznorms.config import Settings
 from kznorms.paths import SYNTHETIC
@@ -60,7 +66,7 @@ class Teacher:
         max_consecutive_failures: int = 5,
     ) -> None:
         # max_retries=0: повторами управляем сами — со своим ожиданием и счётчиком неудач
-        self.client = OpenAI(base_url=base_url, api_key=api_key, timeout=180, max_retries=0)
+        self.client = OpenAI(base_url=base_url, api_key=api_key, timeout=90, max_retries=0)
         self.base_url, self.model = base_url, model
         self.cache_dir = cache_dir
         self.retries = retries
@@ -121,9 +127,11 @@ class Teacher:
                     continue
                 self._fail(e)
                 return None
-            except RateLimitError as e:
+            except (RateLimitError, InternalServerError, APITimeoutError) as e:
+                # 429 — минутный лимит; 503 «high demand» и таймауты — перегрузка у провайдера:
+                # и то и другое проходит само, если подождать подольше
                 self.last_error = str(e)[:300]
-                time.sleep(15 * (attempt + 1))  # минутный лимит: 15, 30, 45 с …
+                time.sleep(15 * (attempt + 1))  # 15, 30, 45 с …
             except Exception as e:  # сеть, 5xx
                 self.last_error = str(e)[:300]
                 time.sleep(2**attempt)

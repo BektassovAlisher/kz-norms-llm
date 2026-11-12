@@ -67,7 +67,11 @@ def run(teacher, retriever, split_of: dict[str, str], cfg: dict) -> dict:
 
     allowed = {slug for slug, sp in split_of.items() if sp in ("train", "val")}
     retriever.warmup("hybrid_rerank")
-    examples = build_contexts(retriever, questions, allowed, cfg)
+    ctx_path = SYNTHETIC / "contexts.jsonl"
+    cache = {ex.q.qid: ex for ex in load_examples(ctx_path)} if ctx_path.exists() else {}
+    examples = build_contexts(retriever, questions, allowed, cfg, cache)
+    # контексты — до ответов учителя: квота кончится на ответах, а GPU-часть уже сохранена
+    _write_jsonl(ctx_path, (ex.model_dump_json() for ex in examples))
     examples = gen_answers(teacher, examples, cfg)
     kept = apply_filter(examples, cfg)
     _write_jsonl(SYNTHETIC / "examples.jsonl", (ex.model_dump_json() for ex in examples))
@@ -79,6 +83,11 @@ def run(teacher, retriever, split_of: dict[str, str], cfg: dict) -> dict:
         json.dumps(rep, ensure_ascii=False, indent=1), encoding="utf-8"
     )
     return rep
+
+
+def load_examples(path: Path) -> list[SynthExample]:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return [SynthExample.model_validate_json(x) for x in lines if x.strip()]
 
 
 def load_questions(path: Path = SYNTHETIC / "questions.jsonl") -> list[SynthQuestion]:

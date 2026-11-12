@@ -186,3 +186,20 @@ def test_teacher_stops_after_consecutive_failures(tmp_path, monkeypatch):
         assert t.chat_json([{"role": "user", "content": str(i)}], {}) is None
     with pytest.raises(QuotaExhausted):
         t.chat_json([{"role": "user", "content": "ещё"}], {})
+
+
+def test_contexts_are_reused_from_cache():
+    from kznorms.synth.build_contexts import build_contexts
+
+    cfg = {**CFG, "seed": 1, "not_found_share": 0.5}
+    first = build_contexts(FakeRetriever(), [Q], ALLOWED, cfg)
+
+    class Broken(FakeRetriever):
+        def retrieve(self, query, k=None):
+            raise AssertionError("поиск не должен вызываться — контекст есть в кэше")
+
+    again = build_contexts(Broken(), [Q], ALLOWED, cfg, cache={Q.qid: first[0]})
+    assert again[0].passages == first[0].passages
+    # тот же вопрос в другом прогоне — то же решение not_found (зерно от qid, не от порядка)
+    other = build_contexts(FakeRetriever(), [Q.model_copy(update={"qid": "x/0"}), Q], ALLOWED, cfg)
+    assert other[1].not_found == first[0].not_found
