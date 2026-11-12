@@ -203,3 +203,26 @@ def test_contexts_are_reused_from_cache():
     # тот же вопрос в другом прогоне — то же решение not_found (зерно от qid, не от порядка)
     other = build_contexts(FakeRetriever(), [Q.model_copy(update={"qid": "x/0"}), Q], ALLOWED, cfg)
     assert other[1].not_found == first[0].not_found
+
+
+def test_daily_quota_stops_immediately(tmp_path, monkeypatch):
+    import httpx
+    import pytest
+    from openai import RateLimitError
+
+    from kznorms.synth.teacher import QuotaExhausted
+
+    monkeypatch.setattr("kznorms.synth.teacher.time.sleep", lambda s: None)
+    body = '{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}'
+    resp = httpx.Response(429, text=body, request=httpx.Request("POST", "http://x"))
+    t = Teacher("http://x", "m", cache_dir=tmp_path)
+    calls = []
+
+    def quota(*a):
+        calls.append(1)
+        raise RateLimitError("quota", response=resp, body=None)
+
+    t._request = quota
+    with pytest.raises(QuotaExhausted):
+        t.chat_json([{"role": "user", "content": "q"}], {})
+    assert len(calls) == 1  # без повторов

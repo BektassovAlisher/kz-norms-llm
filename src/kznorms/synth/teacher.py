@@ -127,9 +127,16 @@ class Teacher:
                     continue
                 self._fail(e)
                 return None
-            except (RateLimitError, InternalServerError, APITimeoutError) as e:
-                # 429 — минутный лимит; 503 «high demand» и таймауты — перегрузка у провайдера:
-                # и то и другое проходит само, если подождать подольше
+            except RateLimitError as e:
+                body = getattr(getattr(e, "response", None), "text", "") or str(e)
+                if "PerDay" in body:  # дневная квота (Gemini: ...PerDayPerProjectPerModel...)
+                    self.last_error = "дневная квота исчерпана: " + body[:200]
+                    self.consecutive_failures = self.max_consecutive_failures
+                    raise QuotaExhausted(self.last_error) from e
+                self.last_error = str(e)[:300]
+                time.sleep(15 * (attempt + 1))
+            except (InternalServerError, APITimeoutError) as e:
+                # 503 «high demand» и таймауты — перегрузка у провайдера: проходит сама
                 self.last_error = str(e)[:300]
                 time.sleep(15 * (attempt + 1))  # 15, 30, 45 с …
             except Exception as e:  # сеть, 5xx
