@@ -1,8 +1,17 @@
+teacher: big                 # big — API из .env (TEACHER_*); base — локальный llama-server (только пилот!)
+n_clauses: 2000              # сколько пунктов взять из train/val-документов
+val_share: 0.1               # доля пунктов из val-документов
 questions_per_clause: 3
-question_types: [numeric, permission, colloquial, multi_clause]
-kazakh_share: 0.1
-not_found_share: 0.25        # доля примеров без gold-пункта в контексте
+question_types: [число, можно ли, условие, разговорный]
+min_passage_chars: 80        # короче — в пункте не о чем спрашивать
+min_letter_share: 0.5        # меньше букв — это строки таблицы, вопросы по ним выходят мусорные
+not_found_share: 0.25        # доля примеров без gold-пункта в контексте → цель not_found
 context_k: 5
-split: {train: 0.7, val: 0.1, test: 0.2}   # делим ДОКУМЕНТЫ, не примеры
-dedup_cosine: 0.95
+nf_max_rerank_ratio: 0.8     # not_found-контекст: без пунктов, которые реранкер ценит ≥ 0.8 × gold
+near_dup_jaccard: 0.6        # и без почти дословных дублей gold
+dedup_jaccard: 0.8           # вопросы к одному пункту с такой похожестью — дубли
+max_answer_chars: 700
+workers: 8                   # параллельных запросов к учителю
+temperature_questions: 0.7   # разнообразие формулировок
+temperature_answers: 0.0     # эталон — детерминированный
 seed: 42

@@ -419,9 +419,31 @@ def eval_retrieval(
 
 
 @app.command()
-def synth() -> None:
-    """Сгенерировать и отфильтровать синтетический SFT-датасет."""
-    _todo("synth")
+def synth(
+    teacher: str = typer.Option(None, help="big (API из .env) | base (локально, только пилот)"),
+    n_clauses: int = typer.Option(None, help="сколько пунктов взять (по умолчанию из конфига)"),
+) -> None:
+    """Синтетика: пункты train/val → вопросы → контексты → ответы учителя → фильтр → data/sft/."""
+    import json
+
+    from kznorms.config import load_yaml
+    from kznorms.paths import SFT, SYNTHETIC
+    from kznorms.retrieval.retriever import Retriever
+    from kznorms.splits import load_splits
+    from kznorms.synth.run import run
+    from kznorms.synth.teacher import get_teacher
+
+    cfg = load_yaml("synth")
+    cfg["n_clauses"] = n_clauses or cfg["n_clauses"]
+    name = teacher or cfg["teacher"]
+    if name == "base":
+        print(
+            "[yellow]учитель = локальная Qwen3-4B: только проверка конвейера, "
+            "не для обучения[/yellow]"
+        )
+    rep = run(get_teacher(name), Retriever(), load_splits(), cfg)
+    typer.echo(json.dumps(rep, ensure_ascii=False, indent=1))
+    print(f"[green]готово[/green] → {SFT}/train.jsonl, val.jsonl; разбор — {SYNTHETIC}")
 
 
 @app.command("train-llm")

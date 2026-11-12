@@ -65,6 +65,27 @@ class AnswerResponse(BaseModel):
     model: str = ""
 
 
+class SynthQuestion(BaseModel):
+    """Вопрос, сгенерированный учителем к одному фрагменту пункта."""
+
+    qid: str  # "<chunk_id>/<i>"
+    split: Literal["train", "val"]
+    clause_id: str
+    chunk_id: str  # gold-фрагмент: учитель видел именно его
+    qtype: str
+    question: str
+
+
+class SynthExample(BaseModel):
+    """Обучающий пример: вопрос + контекст + эталонный ответ учителя."""
+
+    q: SynthQuestion
+    not_found: bool  # gold убран из контекста → правильный ответ not_found
+    passages: list[dict]  # rag.prompts.Passage как dict — ровно то, что увидит модель
+    answer: Answer | None = None
+    reasons: list[str] = []  # почему пример отброшен фильтром; пусто — годен
+
+
 class EvalItem(BaseModel):
     """Строка из data/eval/qa_test.jsonl (ручная разметка)."""
 
