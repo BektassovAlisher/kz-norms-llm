@@ -81,7 +81,10 @@ def select_chunks(
 def question_schema(types: list[str], n: int) -> dict:
     item = {
         "type": "object",
-        "properties": {"type": {"enum": types}, "question": {"type": "string"}},
+        "properties": {
+            "type": {"type": "string", "enum": types},  # Gemini без "type" схему не примет
+            "question": {"type": "string"},
+        },
         "required": ["type", "question"],
     }
     return {

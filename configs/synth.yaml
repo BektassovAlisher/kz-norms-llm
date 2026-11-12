@@ -11,7 +11,9 @@ nf_max_rerank_ratio: 0.8     # not_found-контекст: без пунктов
 near_dup_jaccard: 0.6        # и без почти дословных дублей gold
 dedup_jaccard: 0.8           # вопросы к одному пункту с такой похожестью — дубли
 max_answer_chars: 700
-workers: 8                   # параллельных запросов к учителю
+workers: 4                   # параллельных запросов к учителю
+rpm: 10                      # не чаще N запросов в минуту (бесплатный Gemini ≈ 10–15); 0 — без лимита
+teacher_params: {}           # доп. параметры запроса, например {reasoning_effort: low}
 temperature_questions: 0.7   # разнообразие формулировок
 temperature_answers: 0.0     # эталон — детерминированный
 seed: 42

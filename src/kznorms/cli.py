@@ -441,7 +441,14 @@ def synth(
             "[yellow]учитель = локальная Qwen3-4B: только проверка конвейера, "
             "не для обучения[/yellow]"
         )
-    rep = run(get_teacher(name), Retriever(), load_splits(), cfg)
+    from kznorms.synth.teacher import QuotaExhausted
+
+    try:
+        rep = run(get_teacher(name, cfg), Retriever(), load_splits(), cfg)
+    except QuotaExhausted as e:
+        print(f"[red]учитель перестал отвечать[/red] (квота или ключ): {e}")
+        print("Готовые ответы в кэше — перезапусти позже, продолжится с места.")
+        raise typer.Exit(1) from e
     typer.echo(json.dumps(rep, ensure_ascii=False, indent=1))
     print(f"[green]готово[/green] → {SFT}/train.jsonl, val.jsonl; разбор — {SYNTHETIC}")
 

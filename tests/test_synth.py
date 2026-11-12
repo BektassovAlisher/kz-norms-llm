@@ -156,3 +156,33 @@ def test_teacher_cache(tmp_path):
     assert api.n == 1 and t.cached == 1
     t.chat_json(msgs, {}, temperature=0.7)  # другой запрос — новый вызов
     assert api.n == 2
+
+
+def test_rate_limiter_spaces_calls():
+    import time
+
+    from kznorms.synth.teacher import RateLimiter
+
+    lim = RateLimiter(rpm=600)  # 0,1 с между вызовами
+    t = time.monotonic()
+    for _ in range(4):
+        lim.wait()
+    assert time.monotonic() - t >= 0.29
+
+
+def test_teacher_stops_after_consecutive_failures(tmp_path, monkeypatch):
+    import pytest
+
+    from kznorms.synth.teacher import QuotaExhausted
+
+    t = Teacher("http://x", "m", cache_dir=tmp_path, retries=1, max_consecutive_failures=2)
+
+    def boom(*a):
+        raise ConnectionError("квота")
+
+    t._request = boom
+    monkeypatch.setattr("kznorms.synth.teacher.time.sleep", lambda s: None)  # не ждать
+    for i in range(2):
+        assert t.chat_json([{"role": "user", "content": str(i)}], {}) is None
+    with pytest.raises(QuotaExhausted):
+        t.chat_json([{"role": "user", "content": "ещё"}], {})
