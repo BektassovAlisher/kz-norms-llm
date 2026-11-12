@@ -17,9 +17,10 @@ class Settings(BaseSettings):
     teacher_base_url: str = ""
     teacher_api_key: str = ""
     teacher_model: str = ""
-    # 127.0.0.1, не localhost: localhost сначала резолвится в IPv6 ::1, а там 8080 может
-    # слушать кто-то другой (Docker Desktop / WSL) — запросы уйдут ему и вернут 404
-    llm_base_url: str = "http://127.0.0.1:8080/v1"
+    # 127.0.0.1, не localhost (localhost сначала резолвится в IPv6 ::1), и порт 8085, не
+    # популярный 8080: на этой машине 8080 заняли Docker Desktop и WSL — и на ::1, и на
+    # 127.0.0.1; два слушателя на одном адресе, запросы уходили им и получали 404
+    llm_base_url: str = "http://127.0.0.1:8085/v1"
     qdrant_url: str = "http://localhost:6333"
 
 

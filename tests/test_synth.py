@@ -263,3 +263,17 @@ def test_stages_run_separately_through_files(tmp_path, monkeypatch):
     rep = run_mod.run(FakeTeacher(), r, split_of, cfg, ("answers",))
     assert rep["questions"] == 1 and rep["kept"] == 1
     assert (tmp_path / "sft" / "train.jsonl").read_text(encoding="utf-8").count("\n") == 1
+
+
+def test_soft_refusal_without_citations_is_relabeled():
+    from kznorms.synth.filter import NOT_FOUND_TEXT
+
+    soft = example(True, Answer(status="partial", answer="Не указано в контексте."),
+                   question="Где перила?")  # fmt: skip
+    cited = example(True, GOOD, question="Сколько ступеней?")  # опора есть — выбрасываем
+    gold_soft = example(False, Answer(status="partial", answer="Не хватает данных."))
+    kept = apply_filter([soft, cited, gold_soft], CFG)
+    assert kept == [soft] and soft.relabeled
+    assert soft.answer == Answer(status="not_found", answer=NOT_FOUND_TEXT)
+    assert cited.reasons == ["учитель нашёл ответ без gold"]
+    assert gold_soft.reasons  # с gold мягкий отказ не исправляем — просто плохой пример

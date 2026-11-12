@@ -1,5 +1,5 @@
 teacher: local               # local — модель в llama-server (Qwen3-8B); big — API из .env (TEACHER_*)
-n_clauses: 2000              # сколько пунктов взять из train/val-документов
+n_clauses: 3000              # сколько пунктов взять из train/val-документов (выход ~50%)
 val_share: 0.1               # доля пунктов из val-документов
 questions_per_clause: 3
 question_types: [число, можно ли, условие, разговорный]

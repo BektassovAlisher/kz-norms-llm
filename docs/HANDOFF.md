@@ -194,7 +194,7 @@ CLI `stats`, `clause`. 13 тестов зелёные.
 - llama.cpp b12317 (CUDA 13.5, Windows) в `artifacts/llama/`, модель
   `artifacts/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf` (unsloth, 2,5 ГБ). Запуск:
   `artifacts/llama/llama-server.exe -m artifacts/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
-  -c 8192 -ngl 99 --port 8080 --jinja`. Видеопамять: сервер ~3,8 ГБ + поиск ~2,2 ГБ — влезает.
+  -c 8192 -ngl 99 --port 8085 --jinja`. Видеопамять: сервер ~3,8 ГБ + поиск ~2,2 ГБ — влезает.
 - Первый прогон (13 вопросов из теста, ручной разбор) — точка отсчёта для дообучения:
   - JSON по схеме — всегда (грамматика llama.cpp). LLM 1–10 с на вопрос.
   - **`status` не откалиброван**: идеальные ответы (q040, q048) помечены `partial`.

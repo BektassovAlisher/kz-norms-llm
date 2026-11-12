@@ -148,7 +148,7 @@ def build_app(pipeline_factory):
         except APIConnectionError:
             msg = (
                 '<div class="kz-problems">LLM недоступна: запусти llama-server '
-                "(команда в CLAUDE.md) на порту 8080.</div>"
+                "(команда в CLAUDE.md) на порту 8085.</div>"
             )
             return msg, "", ""
         return render_answer(resp), render_contexts(resp), render_timings(resp)

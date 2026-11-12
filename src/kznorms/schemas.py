@@ -84,6 +84,7 @@ class SynthExample(BaseModel):
     passages: list[dict]  # rag.prompts.Passage как dict — ровно то, что увидит модель
     answer: Answer | None = None
     reasons: list[str] = []  # почему пример отброшен фильтром; пусто — годен
+    relabeled: bool = False  # метка исправлена фильтром (отказ без цитат → not_found)
 
 
 class EvalItem(BaseModel):

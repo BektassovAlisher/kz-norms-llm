@@ -51,6 +51,7 @@ def report(questions, examples, kept, retriever, teacher) -> dict:
         "kept_by_split": dict(Counter(ex.q.split for ex in kept)),
         "kept_not_found_share": round(sum(ex.not_found for ex in kept) / max(len(kept), 1), 2),
         "kept_status": dict(Counter(ex.answer.status for ex in kept)),
+        "kept_relabeled": sum(ex.relabeled for ex in kept),
         "drop_reasons": dict(reasons.most_common()),
         "teacher_calls": {"new": teacher.calls, "cache": teacher.cached, "failed": teacher.failed},
     }
