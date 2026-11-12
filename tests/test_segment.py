@@ -1,4 +1,4 @@
-from kznorms.ingest.segment import is_successor, segment, split_embedded
+from kznorms.ingest.segment import is_successor, segment, split_embedded, split_number
 from kznorms.schemas import Block, Source
 
 SRC = Source(doc_slug="doc", doc_code="СН РК тест", title="Тест", format="pdf")
@@ -121,3 +121,104 @@ def test_number_followed_by_lowercase_is_not_clause():
     )
     assert [c.number for c in clauses] == ["5.1.1", "5.1.2"]
     assert clauses[0].text == "Принимается по таблице\n5.4 как для плит."
+
+
+def test_false_jump_from_table_row_does_not_swallow_clauses():
+    # «9.8 Комплексные пункты…» — строка таблицы, формально «продолжает» 6.1.1;
+    # жадный разбор принимал её, и 6.1.2 … 6.2.1 терялись как «шаг назад»
+    clauses = segment(
+        blocks(
+            "6 ТРЕБОВАНИЯ",
+            "6.1.1 Первый.",
+            "Таблица 3",
+            "9.8 Комплексные приемные пункты",
+            "6.1.2 Второй.",
+            "6.1.3 Третий.",
+            "6.2.1 Четвёртый.",
+        ),
+        SRC,
+    )
+    assert [c.number for c in clauses] == ["6.1.1", "6.1.2", "6.1.3", "6.2.1"]
+    assert "9.8 Комплексные" in clauses[0].text
+
+
+def test_table_values_with_zero_are_not_clauses():
+    clauses = segment(blocks("4 ТРЕБОВАНИЯ", "4.5.1 Пункт.", "5.0 0.6 0.5", "4.6 Освещение."), SRC)
+    assert [c.number for c in clauses] == ["4.5.1", "4.6"]
+
+
+def test_chain_of_embedded_clauses_in_one_paragraph():
+    clauses = segment(
+        blocks(
+            "6 ТРЕБОВАНИЯ",
+            "6.1.1 Выбросы через дымоходы.",
+            "Дополнен подпунктами. 6.1.1.1* Первый. 6.1.1.2* Второй. 6.1.1.3* Третий.",
+            "6.1.2 Дальше.",
+        ),
+        SRC,
+    )
+    assert [c.number for c in clauses] == ["6.1.1", "6.1.1.1", "6.1.1.2", "6.1.1.3", "6.1.2"]
+
+
+def test_numeric_appendix_with_p_prefixed_clauses():
+    assert split_number("П4.1.1") == ("П4", [1, 1])
+    assert split_number("Д.3.2") == ("Д", [3, 2]) and split_number("Б") == ("Б", [])
+    clauses = segment(
+        blocks(
+            "17 БЕЗОПАСНОСТЬ",
+            "17.15 Последний пункт.",
+            "Приложение 4",
+            "(рекомендуемое)",
+            "П4.1.1 Оборудование станции мониторинга.",
+            "П4.1.2 Необходимо обеспечить места установки.",
+            "- вблизи центральной оси;",
+        ),
+        SRC,
+    )
+    assert [c.number for c in clauses] == ["17.15", "П4", "П4.1.1", "П4.1.2"]
+    assert clauses[-1].text.endswith("- вблизи центральной оси;")
+
+
+def test_toc_appendix_entries_are_dropped():
+    clauses = segment(
+        blocks(
+            "5 ТРЕБОВАНИЯ",
+            "5.1.1 Пункт.",
+            "Приложение А (обязательное). Перечень документов",
+            "Приложение Б (рекомендуемое). Термины",
+            "Приложение А",
+            "(обязательное) Перечень документов. " + "СН РК 1.01-01 Основные положения. " * 10,
+            "Приложение Б",
+            "Термины. " + "Анализ уязвимости — оценка. " * 15,
+        ),
+        SRC,
+    )
+    assert [c.clause_id for c in clauses] == ["doc:5.1.1", "doc:А", "doc:Б"]
+    assert len(clauses[1].text) > 300
+
+
+def test_section_heading_with_asterisk_after_number():
+    clauses = segment(
+        blocks(
+            "6 ТРЕБОВАНИЯ", "6.11 Пункт.", "7 * СИСТЕМЫ ВОДОПРОВОДА", "7.1 Первый.", "8.1 Дальше."
+        ),
+        SRC,
+    )
+    assert [c.number for c in clauses] == ["6.11", "7.1", "8.1"]
+    assert clauses[1].section == "7 СИСТЕМЫ ВОДОПРОВОДА"
+
+
+def test_section_heading_with_latin_lookalike_letter():
+    clauses = segment(
+        blocks(
+            "1 ОБЛАСТЬ ПРИМЕНЕНИЯ",
+            "1.1 Нормы.",
+            "2* НОРМАТИВНЫЕ ССЫЛКИ",
+            "СН РК 1.01-01 Основные положения.",
+            "3 TЕРМИНЫ И ОПРЕДЕЛЕНИЯ",  # T — латинская
+            "3.1 Канализация: система.",
+        ),
+        SRC,
+    )
+    assert [c.number for c in clauses] == ["1.1", "3.1"]
+    assert clauses[1].section == "3 ТЕРМИНЫ И ОПРЕДЕЛЕНИЯ"

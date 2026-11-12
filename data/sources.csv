@@ -2,3 +2,32 @@ doc_slug,doc_code,title,url,format,status,version_date,lang,topic
 zhilye-zdaniya,СН РК 3.02-01-2023,Здания жилые многоквартирные,,pdf,действует,2023-06-16,ru,жильё
 pozharnaya-bezopasnost,СП РК 2.02-101-2022,Пожарная безопасность зданий и сооружений,,pdf,действует,,ru,пожарная безопасность
 dostupnost-mgn,СН РК 3.06-01-2011,Доступность зданий и сооружений для маломобильных групп населения,,pdf,действует,,ru,доступность
+sp-zhilye-zdaniya,СП РК 3.02-101-2012,Здания жилые многоквартирные,https://new-shop.ksm.kz/media/egfntd/ntdgo/%D0%A1%D0%9F_%D0%A0%D0%9A_3_iRUFCC1.02-101-2012.pdf,pdf,действует,,ru,жильё
+sn-odnokvartirnye,СН РК 3.02-02-2023,Проектирование одноквартирных жилых домов и их инженерных систем,https://new-shop.ksm.kz/media/egfntd/ntdgo/3_02_02_2023.pdf,pdf,действует,,ru,жильё
+sp-odnokvartirnye,СП РК 3.02-102-2014,Проектирование одноквартирных жилых домов и их инженерных систем,https://new-shop.ksm.kz/media/egfntd/ntdgo/SP_RK_3.02-102-2014.pdf,pdf,действует,,ru,жильё
+sn-obshchestvennye,СН РК 3.02-07-2014,Общественные здания и сооружения,https://new-shop.ksm.kz/media/egfntd/ntdgo/%D0%A1%D0%9D_%D0%A0%D0%9A_3.02-07-2014_80-%D0%BD%D0%BA.pdf,pdf,действует,,ru,общественные здания
+sp-obshchestvennye,СП РК 3.02-107-2014,Общественные здания и сооружения,https://new-shop.ksm.kz/media/egfntd/ntdgo/%D0%A1%D0%9F_%D0%A0%D0%9A_3.02-107-2014_80%D0%BD%D0%BA.pdf,pdf,действует,,ru,общественные здания
+sn-administrativnye,СН РК 3.02-08-2013,Административные и бытовые здания,https://new-shop.ksm.kz/media/egfntd/ntdgo/3_02_08_2013.pdf,pdf,действует,,ru,общественные здания
+sp-administrativnye,СП РК 3.02-108-2013,Административные и бытовые здания,https://new-shop.ksm.kz/media/egfntd/ntdgo/SP_RK_3.02-108-2013.pdf,pdf,действует,,ru,общественные здания
+sn-doshkolnye,СН РК 3.02-10-2011,Дошкольные объекты образования,https://new-shop.ksm.kz/media/egfntd/ntdgo/3_02_10_2011.pdf,pdf,действует,,ru,общественные здания
+sp-doshkolnye,СП РК 3.02-110-2012,Дошкольные объекты образования,https://new-shop.ksm.kz/media/egfntd/ntdgo/%D0%A1%D0%9F_%D0%A0%D0%9A_3.02-110-2012.pdf,pdf,действует,,ru,общественные здания
+sn-mnogofunkcionalnye,СН РК 3.02-09-2019,Многофункциональные здания и комплексы,https://new-shop.ksm.kz/media/egfntd/ntdgo/3_02_09_2023.pdf,pdf,действует,,ru,общественные здания
+sp-vysotnye,СП РК 3.02-02-2008,Проектирование многофункциональных высотных зданий и комплексов,https://new-shop.ksm.kz/media/egfntd/ntdgo/SP_RK_3.02-02-2008.pdf,pdf,действует,,ru,высотные здания
+sn-pozharnaya-bezopasnost,СН РК 2.02-01-2023,Пожарная безопасность зданий и сооружений,https://new-shop.ksm.kz/media/egfntd/ntdgo/2_02_01_2023.pdf,pdf,действует,,ru,пожарная безопасность
+sn-pozharnaya-avtomatika,СН РК 2.02-02-2023,Пожарная автоматика зданий и сооружений,https://new-shop.ksm.kz/media/egfntd/ntdgo/%D0%A1%D0%9D_%D0%A0%D0%9A_2.02-02-2023.pdf,pdf,действует,,ru,пожарная безопасность
+sp-pozharnaya-avtomatika,СП РК 2.02-102-2022,Пожарная автоматика зданий и сооружений,https://new-shop.ksm.kz/media/egfntd/ntdgo/2_02_102_2022.pdf,pdf,действует,,ru,пожарная безопасность
+sn-osveshchenie,СН РК 2.04-01-2011,Естественное и искусственное освещение,https://new-shop.ksm.kz/media/egfntd/ntdgo/2_04_01_2011.pdf,pdf,действует,,ru,строительная физика
+sp-osveshchenie,СП РК 2.04-104-2012,Естественное и искусственное освещение,https://new-shop.ksm.kz/media/egfntd/ntdgo/SP_RK_2.04-104-2012.pdf,pdf,действует,,ru,строительная физика
+sn-shum,СН РК 2.04-02-2011,Защита от шума,https://new-shop.ksm.kz/media/egfntd/ntdgo/2_04_02_2011.pdf,pdf,действует,,ru,строительная физика
+sn-teplozashchita,СН РК 2.04-07-2022,Тепловая защита зданий,https://new-shop.ksm.kz/media/egfntd/ntdgo/2_04_07_2022.pdf,pdf,действует,,ru,строительная физика
+sp-teplozashchita,СП РК 2.04-107-2022,Тепловая защита зданий,https://new-shop.ksm.kz/media/egfntd/ntdgo/2_04_107_2022.pdf,pdf,действует,,ru,строительная физика
+sn-krovli,СН РК 3.02-37-2013,Крыши и кровли,https://new-shop.ksm.kz/media/egfntd/ntdgo/3_02_37_2013.pdf,pdf,действует,,ru,конструкции
+sp-krovli,СП РК 3.02-137-2013,Крыши и кровли,https://new-shop.ksm.kz/media/egfntd/ntdgo/SP_RK_3.02-137-2013.pdf,pdf,действует,,ru,конструкции
+sp-poly,СП РК 3.02-136-2012,Полы,https://new-shop.ksm.kz/media/egfntd/ntdgo/SP_RK_3.02-136-2012.pdf,pdf,действует,,ru,конструкции
+sn-gradostroitelstvo,СН РК 3.01-01-2013,Градостроительство. Планировка и застройка городских и сельских населенных пунктов,https://new-shop.ksm.kz/media/egfntd/ntdgo/3_01_01_2013.pdf,pdf,действует,,ru,градостроительство
+sp-gradostroitelstvo,СП РК 3.01-101-2013,Градостроительство. Планировка и застройка городских и сельских населенных пунктов,https://new-shop.ksm.kz/media/egfntd/ntdgo/%D0%A1%D0%9F_%D0%A0%D0%9A_3_Yc5s458.01-101-2013.pdf,pdf,действует,,ru,градостроительство
+sn-vodoprovod,СН РК 4.01-01-2011,Внутренний водопровод и канализация зданий и сооружений,https://new-shop.ksm.kz/media/egfntd/ntdgo/4_01_01_2011.pdf,pdf,действует,,ru,инженерные системы
+sp-vodoprovod,СП РК 4.01-101-2012,Внутренний водопровод и канализация зданий и сооружений,https://new-shop.ksm.kz/media/egfntd/ntdgo/SP_RK_4.01-101-2012.pdf,pdf,действует,,ru,инженерные системы
+sn-ovik,СН РК 4.02-01-2011,"Отопление, вентиляция и кондиционирование воздуха",https://new-shop.ksm.kz/media/egfntd/ntdgo/4_02_01_2011.pdf,pdf,действует,,ru,инженерные системы
+sp-ovik,СП РК 4.02-101-2012,"Отопление, вентиляция и кондиционирование воздуха",https://new-shop.ksm.kz/media/egfntd/ntdgo/SP_RK_4.02-101-2012.pdf,pdf,действует,,ru,инженерные системы
+sp-dostupnost-mgn,СП РК 3.06-101-2012,Проектирование зданий и сооружений с учетом доступности для маломобильных групп населения,https://new-shop.ksm.kz/media/egfntd/ntdgo/%D0%A1%D0%9F_%D0%A0%D0%9A_3.06-101-2012.pdf,pdf,действует,,ru,доступность

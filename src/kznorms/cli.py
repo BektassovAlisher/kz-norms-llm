@@ -47,34 +47,68 @@ def ingest(delay: float = 2.0) -> None:
 
 
 @app.command()
-def stats() -> None:
-    """Проверка нарезки: пункты на документ, длины, разрывы нумерации, дубли."""
+def stats(gaps: bool = typer.Option(False, help="перечислить разрывы нумерации")) -> None:
+    """Качество нарезки по документам: покрытие текста, разрывы нумерации, дубли, гиганты.
+
+    Покрытие — доля текста после парсинга (data/interim), попавшая в пункты. Низкое
+    покрытие значит, что текст где-то теряется (например, ушёл в пропускаемый раздел).
+    «строчн.» — пункты, текст которых начинается со строчной: почти всегда это ложный номер
+    («…по Таблице» + «В.8 как для плит») или сдвиг нумерации.
+    """
     from collections import defaultdict
     from statistics import median
 
+    from rich.table import Table
+
     from kznorms.ingest.segment import is_successor
-    from kznorms.paths import CLAUSES_JSONL
-    from kznorms.schemas import Clause
+    from kznorms.paths import CLAUSES_JSONL, INTERIM
+    from kznorms.schemas import Block, Clause
 
     by_doc: dict[str, list[Clause]] = defaultdict(list)
     for line in CLAUSES_JSONL.read_text(encoding="utf-8").splitlines():
         c = Clause.model_validate_json(line)
         by_doc[c.clause_id.split(":")[0]].append(c)
 
+    table = Table(
+        title=f"{sum(map(len, by_doc.values()))} пунктов в {len(by_doc)} документах",
+        caption="покр — доля текста в пунктах; строч — пункты со строчной буквы; "
+        "мед/макс — длина текста пункта",
+    )
+    table.add_column("документ", no_wrap=True)
+    for col in ("пункт", "покр", "разр", "дубл", "строч", ">4k", "мед", "макс"):
+        table.add_column(col, justify="right")
+    gap_lines = []
     for slug, cl in by_doc.items():
-        lens = [len(c.text) for c in cl]
-        numbered = [c for c in cl if "." in c.number]
-        gaps = [
-            f"{a.number}→{b.number}"
-            for a, b in zip(numbered, numbered[1:], strict=False)
-            if not is_successor(a.number, b.number)
+        interim = INTERIM / f"{slug}.jsonl"
+        total = sum(
+            len(Block.model_validate_json(x).text)
+            for x in interim.read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ) if interim.exists() else 0  # fmt: skip
+        got = sum(len(c.text) + len(c.number) + 1 for c in cl)
+        nums = [c.number for c in cl if "." in c.number]
+        doc_gaps = [
+            f"{a}→{b}" for a, b in zip(nums, nums[1:], strict=False) if not is_successor(a, b)
         ]
-        dups = sum("#" in c.clause_id for c in cl)
-        long_ = [c.number for c in cl if len(c.text) > 4000]
-        print(f"\n[bold]{slug}[/bold] ({cl[0].doc_code}): {len(cl)} пунктов")
-        print(f"  длина текста: медиана {median(lens):.0f}, макс {max(lens)}")
-        print(f"  разрывы нумерации ({len(gaps)}): {', '.join(gaps[:10])}")
-        print(f"  дубли номеров: {dups}; очень длинные (>4000): {', '.join(long_) or '—'}")
+        lens = [len(c.text) for c in cl]
+        table.add_row(
+            slug,
+            str(len(cl)),
+            f"{got / total:.0%}" if total else "—",
+            str(len(doc_gaps)),
+            str(sum("#" in c.clause_id for c in cl)),
+            str(sum(c.text[:1].islower() for c in cl)),
+            str(sum(x > 4000 for x in lens)),
+            f"{median(lens):.0f}",
+            str(max(lens)),
+        )
+        if doc_gaps:
+            gap_lines.append(f"[bold]{slug}[/bold]: {', '.join(doc_gaps[:12])}")
+    print(table)
+    if gaps:
+        print("\n".join(gap_lines))
+    else:
+        print("[dim]разрывы вида 1.3→3.1 — пропускаемые «Нормативные ссылки»; список: --gaps[/dim]")
 
 
 @app.command()

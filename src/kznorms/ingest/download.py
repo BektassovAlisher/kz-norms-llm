@@ -42,10 +42,23 @@ def download_all(sources: list[Source], delay: float = 2.0) -> None:
             if not src.url:
                 print(f"[yellow]нет url[/yellow] {src.doc_slug}: положи файл в {path} вручную")
                 continue
-            data = _fetch(client, src.url)
+            try:
+                data = _fetch(client, src.url)
+            except Exception as e:  # один недоступный файл не должен ронять весь ingest
+                cause = e.last_attempt.exception() if hasattr(e, "last_attempt") else e
+                print(
+                    f"[red]не скачан[/red] {src.doc_slug}: {type(cause).__name__} — "
+                    "запусти ingest ещё раз позже"
+                )
+                continue
             # DOCX — это zip-архив, он всегда начинается с байтов PK
-            if src.format == "docx" and not data.startswith(b"PK"):
-                print(f"[red]не DOCX[/red] {src.doc_slug}: сайт вернул что-то другое, проверь url")
+            # PDF начинается с «%PDF»; иначе сайт отдал HTML-страницу ошибки с кодом 200
+            magic = {"docx": b"PK", "pdf": b"%PDF"}.get(src.format)
+            if magic and not data.startswith(magic):
+                print(
+                    f"[red]не {src.format.upper()}[/red] {src.doc_slug}: сайт вернул другое, "
+                    "проверь url"
+                )
                 continue
             path.write_bytes(data)
             print(f"[green]скачан[/green] {path.name} ({len(data) // 1024} КБ)")
