@@ -1,4 +1,4 @@
-teacher: big                 # big — API из .env (TEACHER_*); base — локальный llama-server (только пилот!)
+teacher: local               # local — модель в llama-server (Qwen3-8B); big — API из .env (TEACHER_*)
 n_clauses: 2000              # сколько пунктов взять из train/val-документов
 val_share: 0.1               # доля пунктов из val-документов
 questions_per_clause: 3
@@ -13,7 +13,9 @@ dedup_jaccard: 0.8           # вопросы к одному пункту с т
 max_answer_chars: 700
 workers: 4                   # параллельных запросов к учителю
 rpm: 10                      # не чаще N запросов в минуту (бесплатный Gemini ≈ 10–15); 0 — без лимита
-teacher_params: {}           # доп. параметры запроса, например {reasoning_effort: low}
+teacher_params: {}           # доп. параметры запроса к API, например {reasoning_effort: low}
+local_teacher_params:        # Qwen3-8B «думает» перед ответом — для синтетики выключаем
+  chat_template_kwargs: {enable_thinking: false}
 temperature_questions: 0.7   # разнообразие формулировок
 temperature_answers: 0.0     # эталон — детерминированный
 seed: 42

@@ -56,33 +56,57 @@ def report(questions, examples, kept, retriever, teacher) -> dict:
     }
 
 
-def run(teacher, retriever, split_of: dict[str, str], cfg: dict) -> dict:
+STAGES = ("questions", "contexts", "answers")
+QUESTIONS = SYNTHETIC / "questions.jsonl"
+CONTEXTS = SYNTHETIC / "contexts.jsonl"
+
+
+def stage_questions(teacher, retriever, split_of: dict[str, str], cfg: dict) -> None:
     rng = random.Random(cfg["seed"])
     picked = select_chunks(
         retriever, split_of, cfg["n_clauses"], cfg["val_share"],
         cfg["min_passage_chars"], cfg["min_letter_share"], rng,
     )  # fmt: skip
     questions = gen_questions(teacher, retriever, picked, cfg)
-    _write_jsonl(SYNTHETIC / "questions.jsonl", (q.model_dump_json() for q in questions))
+    _write_jsonl(QUESTIONS, (q.model_dump_json() for q in questions))
 
+
+def stage_contexts(retriever, split_of: dict[str, str], cfg: dict) -> None:
+    """Только поиск (GPU: BGE-M3 + реранкер), учитель не нужен."""
     allowed = {slug for slug, sp in split_of.items() if sp in ("train", "val")}
     retriever.warmup("hybrid_rerank")
-    ctx_path = SYNTHETIC / "contexts.jsonl"
-    cache = {ex.q.qid: ex for ex in load_examples(ctx_path)} if ctx_path.exists() else {}
-    examples = build_contexts(retriever, questions, allowed, cfg, cache)
-    # контексты — до ответов учителя: квота кончится на ответах, а GPU-часть уже сохранена
-    _write_jsonl(ctx_path, (ex.model_dump_json() for ex in examples))
-    examples = gen_answers(teacher, examples, cfg)
+    cache = {ex.q.qid: ex for ex in load_examples(CONTEXTS)} if CONTEXTS.exists() else {}
+    examples = build_contexts(retriever, load_questions(), allowed, cfg, cache)
+    _write_jsonl(CONTEXTS, (ex.model_dump_json() for ex in examples))
+
+
+def stage_answers(teacher, retriever, cfg: dict) -> dict:
+    """Только учитель; из поиска нужны лишь тексты фрагментов (для отчёта), без GPU."""
+    examples = gen_answers(teacher, load_examples(CONTEXTS), cfg)
     kept = apply_filter(examples, cfg)
     _write_jsonl(SYNTHETIC / "examples.jsonl", (ex.model_dump_json() for ex in examples))
-
     for split in ("train", "val"):
         _write_jsonl(SFT / f"{split}.jsonl", (to_sft(ex) for ex in kept if ex.q.split == split))
-    rep = report(questions, examples, kept, retriever, teacher)
+    rep = report(load_questions(), examples, kept, retriever, teacher)
     (SYNTHETIC / "report.json").write_text(
         json.dumps(rep, ensure_ascii=False, indent=1), encoding="utf-8"
     )
     return rep
+
+
+def run(teacher, retriever, split_of: dict[str, str], cfg: dict, stages=STAGES) -> dict | None:
+    """Этапы по порядку; каждый читает файл предыдущего, так что их можно запускать отдельно.
+
+    Зачем отдельно: локальный учитель (llama-server) и модели поиска вместе не влезают в 8 ГБ.
+    Тогда: вопросы (сервер с учителем) → контексты (сервер выключен, GPU у поиска) → ответы.
+    """
+    if "questions" in stages:
+        stage_questions(teacher, retriever, split_of, cfg)
+    if "contexts" in stages:
+        stage_contexts(retriever, split_of, cfg)
+    if "answers" in stages:
+        return stage_answers(teacher, retriever, cfg)
+    return None
 
 
 def load_examples(path: Path) -> list[SynthExample]:
@@ -90,6 +114,6 @@ def load_examples(path: Path) -> list[SynthExample]:
     return [SynthExample.model_validate_json(x) for x in lines if x.strip()]
 
 
-def load_questions(path: Path = SYNTHETIC / "questions.jsonl") -> list[SynthQuestion]:
-    lines = path.read_text(encoding="utf-8").splitlines()
+def load_questions(path: Path | None = None) -> list[SynthQuestion]:
+    lines = (path or QUESTIONS).read_text(encoding="utf-8").splitlines()
     return [SynthQuestion.model_validate_json(x) for x in lines if x.strip()]

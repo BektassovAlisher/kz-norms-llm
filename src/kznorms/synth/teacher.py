@@ -95,7 +95,7 @@ class Teacher:
             temperature=temperature,
             max_tokens=max_tokens,
             response_format=fmt,
-            **self.params,
+            extra_body=self.params or None,  # поля сверх OpenAI-API: llama-server, Gemini
         )
         return resp.choices[0].message.content or ""
 
@@ -170,6 +170,25 @@ def get_teacher(name: str, cfg: dict | None = None) -> Teacher:
             rpm=cfg.get("rpm", 0),
             params=cfg.get("teacher_params") or {},
         )
-    if name == "base":  # пилот: проверить конвейер на локальной модели, данные не для обучения
-        return Teacher(s.llm_base_url, "local")
-    raise ValueError(f"неизвестный учитель {name!r}: big | base")
+    if name in ("local", "base"):  # то, что сейчас загружено в llama-server
+        return Teacher(
+            s.llm_base_url,
+            served_model(s.llm_base_url),
+            params=cfg.get("local_teacher_params") or {},
+        )
+    raise ValueError(f"неизвестный учитель {name!r}: big | local")
+
+
+def served_model(base_url: str) -> str:
+    """Имя файла модели, загруженной в llama-server.
+
+    Сервер принимает любое `model` в запросе и отвечает той, что загружена. Но кэш различает
+    учителей по имени: если всегда слать "local", ответы 4B и 8B перемешаются в одном кэше.
+    """
+    from pathlib import PurePath
+
+    try:
+        data = OpenAI(base_url=base_url, api_key="none", max_retries=0).models.list()
+        return PurePath(data.data[0].id).name
+    except Exception as e:
+        raise SystemExit(f"llama-server на {base_url} не отвечает: {e}") from e

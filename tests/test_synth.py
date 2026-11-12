@@ -226,3 +226,40 @@ def test_daily_quota_stops_immediately(tmp_path, monkeypatch):
     with pytest.raises(QuotaExhausted):
         t.chat_json([{"role": "user", "content": "q"}], {})
     assert len(calls) == 1  # без повторов
+
+
+def test_stages_run_separately_through_files(tmp_path, monkeypatch):
+    import kznorms.synth.run as run_mod
+
+    for name, val in {
+        "SYNTHETIC": tmp_path, "SFT": tmp_path / "sft",
+        "QUESTIONS": tmp_path / "q.jsonl", "CONTEXTS": tmp_path / "c.jsonl",
+    }.items():  # fmt: skip
+        monkeypatch.setattr(run_mod, name, val)
+
+    class FakeTeacher:
+        model, calls, cached, failed = "fake", 0, 0, 0
+
+        def chat_json(self, messages, schema, temperature=0.0, max_tokens=2048):
+            if "questions" in schema.get("properties", {}):
+                return json.dumps({"questions": [
+                    {"type": "число", "question": "Какой ширины делать марш лестницы?"}]},
+                    ensure_ascii=False)  # fmt: skip
+            if "tr:1.1" in messages[1]["content"]:
+                return GOOD.model_dump_json()
+            return Answer(status="not_found", answer="").model_dump_json()
+
+    r = FakeRetriever()
+    r.warmup = lambda mode=None: None
+    r.clause_chunks = {"tr:1.1": r.clause_chunks["tr:1.1"]}  # единственный кандидат — gold
+    cfg = {**CFG, "seed": 1, "not_found_share": 0.0, "n_clauses": 1, "val_share": 0.0,
+           "min_passage_chars": 10, "min_letter_share": 0.5, "question_types": ["число"],
+           "questions_per_clause": 1, "temperature_questions": 0.7,
+           "temperature_answers": 0.0, "workers": 1}  # fmt: skip
+    split_of = {"tr": "train", "te": "test"}
+    assert run_mod.run(FakeTeacher(), r, split_of, cfg, ("questions",)) is None
+    assert (tmp_path / "q.jsonl").exists() and not (tmp_path / "c.jsonl").exists()
+    run_mod.run(None, r, split_of, cfg, ("contexts",))  # без учителя
+    rep = run_mod.run(FakeTeacher(), r, split_of, cfg, ("answers",))
+    assert rep["questions"] == 1 and rep["kept"] == 1
+    assert (tmp_path / "sft" / "train.jsonl").read_text(encoding="utf-8").count("\n") == 1

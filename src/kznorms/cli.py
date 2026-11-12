@@ -420,37 +420,47 @@ def eval_retrieval(
 
 @app.command()
 def synth(
-    teacher: str = typer.Option(None, help="big (API из .env) | base (локально, только пилот)"),
+    teacher: str = typer.Option(None, help="local (llama-server) | big (API из .env)"),
     n_clauses: int = typer.Option(None, help="сколько пунктов взять (по умолчанию из конфига)"),
+    stage: str = typer.Option(
+        "all", help="all | questions | contexts | answers (локальный учитель: по одному)"
+    ),
 ) -> None:
-    """Синтетика: пункты train/val → вопросы → контексты → ответы учителя → фильтр → data/sft/."""
+    """Синтетика: пункты train/val → вопросы → контексты → ответы учителя → фильтр → data/sft/.
+
+    С локальным учителем этапы запускаются по одному: учитель и модели поиска вместе не
+    помещаются в 8 ГБ. questions и answers — с запущенным llama-server, contexts — без него.
+    """
     import json
 
     from kznorms.config import load_yaml
     from kznorms.paths import SFT, SYNTHETIC
     from kznorms.retrieval.retriever import Retriever
     from kznorms.splits import load_splits
-    from kznorms.synth.run import run
-    from kznorms.synth.teacher import get_teacher
+    from kznorms.synth.run import STAGES, run
+    from kznorms.synth.teacher import QuotaExhausted, get_teacher
 
+    stages = STAGES if stage == "all" else (stage,)
+    if any(s not in STAGES for s in stages):
+        raise typer.BadParameter(f"--stage: all | {' | '.join(STAGES)}")
     cfg = load_yaml("synth")
     cfg["n_clauses"] = n_clauses or cfg["n_clauses"]
     name = teacher or cfg["teacher"]
-    if name == "base":
-        print(
-            "[yellow]учитель = локальная Qwen3-4B: только проверка конвейера, "
-            "не для обучения[/yellow]"
-        )
-    from kznorms.synth.teacher import QuotaExhausted
-
+    needs_teacher = stages != ("contexts",)
+    t = get_teacher(name, cfg) if needs_teacher else None
+    if t:
+        print(f"учитель: [bold]{t.model}[/bold]")
     try:
-        rep = run(get_teacher(name, cfg), Retriever(), load_splits(), cfg)
+        rep = run(t, Retriever(), load_splits(), cfg, stages)
     except QuotaExhausted as e:
         print(f"[red]учитель перестал отвечать[/red] (квота или ключ): {e}")
         print("Готовые ответы в кэше — перезапусти позже, продолжится с места.")
         raise typer.Exit(1) from e
-    typer.echo(json.dumps(rep, ensure_ascii=False, indent=1))
-    print(f"[green]готово[/green] → {SFT}/train.jsonl, val.jsonl; разбор — {SYNTHETIC}")
+    if rep:
+        typer.echo(json.dumps(rep, ensure_ascii=False, indent=1))
+        print(f"[green]готово[/green] → {SFT}/train.jsonl, val.jsonl; разбор — {SYNTHETIC}")
+    else:
+        print(f"[green]этап {stage} готов[/green] → {SYNTHETIC}")
 
 
 @app.command("train-llm")
