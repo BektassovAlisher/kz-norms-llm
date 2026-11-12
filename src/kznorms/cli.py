@@ -517,6 +517,28 @@ def eval_generation(
     print(f"→ {md} (+ .jsonl — все ответы для разбора)")
 
 
+@app.command()
+def ui(
+    model: str = typer.Option("base", help="base | big"),
+    port: int = typer.Option(7860, help="порт веб-интерфейса"),
+) -> None:
+    """Веб-интерфейс Gradio: http://127.0.0.1:7860 (нужен запущенный llama-server)."""
+    from kznorms.api.ui import CSS, build_app
+
+    def factory():
+        from kznorms.rag.llm_client import get_llm
+        from kznorms.rag.pipeline import RagPipeline
+
+        pipe = RagPipeline(get_llm(model))
+        pipe.retriever.warmup("hybrid_rerank")
+        return pipe
+
+    # модели поиска грузим сразу: иначе первый вопрос пользователя ждёт их загрузку ~30 с
+    print("загружаю поиск (BGE-M3, реранкер)…")
+    pipe = factory()
+    build_app(lambda: pipe).launch(server_name="127.0.0.1", server_port=port, css=CSS)
+
+
 @app.command("eval")
 def eval_() -> None:
     """Посчитать метрики поиска и генерации → reports/results.md."""

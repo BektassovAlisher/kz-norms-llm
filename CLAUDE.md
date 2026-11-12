@@ -28,6 +28,7 @@ uv run kznorms qa-review      # проверить черновые вопрос
 uv run kznorms eval-retrieval [--drafts] [--all-splits]  # метрики поиска (test) → reports/retrieval.md
 uv run kznorms ask "<вопрос>"  # RAG: поиск → Qwen3-4B (llama-server :8080) → verify
 uv run kznorms eval-generation --drafts  # oracle/e2e → reports/generation_base.md; --reverify без LLM
+uv run kznorms ui              # Gradio → http://127.0.0.1:7860 (нужен llama-server)
 # llama-server (в отдельном терминале):
 # artifacts/llama/llama-server.exe -m artifacts/models/Qwen3-4B-Instruct-2507-Q4_K_M.gguf -c 8192 -ngl 99 --port 8080 --jinja
 ```
