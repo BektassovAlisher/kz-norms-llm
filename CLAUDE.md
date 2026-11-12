@@ -18,11 +18,12 @@ uv run pytest                 # тесты (должны быть зелёным
 uv run ruff check . && uv run ruff format .
 uv run kznorms ingest         # скачать нормы из sources.csv, data/raw → data/processed/clauses.jsonl
 uv run kznorms stats [--gaps]  # качество нарезки по документам (покрытие, разрывы, гиганты)
+uv run kznorms splits         # сплит train/val/test по группам документов (sources.csv)
 uv run kznorms clause <id>    # показать пункт, например zhilye-zdaniya:6.2.10
 uv run kznorms peek <slug>    # блоки после парсинга
 uv run kznorms index          # чанки + BM25 + BGE-M3 → Qdrant (artifacts/), --no-dense без GPU
 uv run kznorms search "<вопрос>" --mode bm25|dense|hybrid|hybrid_rerank --k 5
 uv run kznorms qa-check       # проверка разметки data/eval/qa_test.jsonl
 uv run kznorms qa-review      # проверить черновые вопросы руками
-uv run kznorms eval-retrieval [--drafts]   # метрики поиска → reports/retrieval.md
+uv run kznorms eval-retrieval [--drafts] [--all-splits]  # метрики поиска (test) → reports/retrieval.md
 ```

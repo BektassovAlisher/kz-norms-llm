@@ -112,6 +112,57 @@ def stats(gaps: bool = typer.Option(False, help="перечислить разр
 
 
 @app.command()
+def splits() -> None:
+    """Сплит документов train/val/test: группы, доли пунктов и текста, вопросы теста.
+
+    Долю считаем по пунктам и по тексту, а не по числу документов: документы отличаются
+    по объёму в 10 раз (СН по шуму — 122 пункта, СП по высотным — 862).
+    """
+    from collections import Counter, defaultdict
+
+    from rich.table import Table
+
+    from kznorms.eval.eval_retrieval import load_items
+    from kznorms.ingest.download import load_sources
+    from kznorms.retrieval.retriever import load_clauses
+    from kznorms.splits import SPLITS, check_sources, doc_of, item_split
+
+    sources = load_sources()
+    if errors := check_sources(sources):
+        for e in errors:
+            print(f"[red]ошибка[/red] {e}")
+        raise typer.Exit(1)
+    split_of = {s.doc_slug: s.split for s in sources}
+    n_clauses, n_chars = Counter(), Counter()
+    for c in load_clauses():
+        n_clauses[split_of[doc_of(c.clause_id)]] += 1
+        n_chars[split_of[doc_of(c.clause_id)]] += len(c.text)
+    groups: dict[str, set[str]] = defaultdict(set)
+    for s in sources:
+        groups[s.split].add(s.group)
+    qa = Counter(item_split(it, split_of) for it in load_items() if it.answerable)
+
+    table = Table(title="Сплит по группам документов (СН+СП одной темы — вместе)")
+    for col in ("сплит", "групп", "докум.", "пунктов", "доля пунктов", "доля текста", "QA"):
+        table.add_column(col, justify="right")
+    for sp in SPLITS:
+        table.add_row(
+            sp,
+            str(len(groups[sp])),
+            str(sum(s.split == sp for s in sources)),
+            str(n_clauses[sp]),
+            f"{n_clauses[sp] / n_clauses.total():.0%}",
+            f"{n_chars[sp] / n_chars.total():.0%}",
+            str(qa[sp]),
+        )
+    print(table)
+    for sp in SPLITS:
+        print(f"[bold]{sp}[/bold]: {', '.join(sorted(groups[sp]))}")
+    if qa["mixed"]:
+        print(f"[yellow]{qa['mixed']} вопр. с gold из разных сплитов[/yellow] — см. qa-check")
+
+
+@app.command()
 def peek(slug: str, n: int = 40, start: int = 0) -> None:
     """Показать блоки документа из data/interim/ — проверить парсинг глазами."""
     from kznorms.paths import INTERIM
@@ -202,8 +253,10 @@ def qa_check() -> None:
 
     from kznorms.eval.eval_retrieval import QA_TEST, load_items
     from kznorms.retrieval.retriever import load_clauses
+    from kznorms.splits import item_split, load_splits
 
     items = load_items()
+    split_of = load_splits()
     known = {c.clause_id for c in load_clauses()}
     errors = []
     for id_, n in Counter(it.id for it in items).items():
@@ -230,6 +283,15 @@ def qa_check() -> None:
     )
     print(f"  по документам: {dict(docs)}")
     print(f"  по типам: {dict(Counter(it.type for it in items))}")
+    by_split = Counter(item_split(it, split_of) for it in ans)
+    print(f"  с ответом по сплитам: {dict(by_split)}")
+    for it in ans:
+        sp = item_split(it, split_of)
+        if sp != "test":
+            print(
+                f"[yellow]внимание[/yellow] {it.id}: gold в {sp}-документах "
+                f"{it.gold_clause_ids} — в итоговые метрики не войдёт"
+            )
     for e in errors:
         print(f"[red]ошибка[/red] {e}")
     if errors:
@@ -302,6 +364,9 @@ def qa_review(all_: bool = typer.Option(False, "--all", help="включая у�
 def eval_retrieval(
     drafts: bool = typer.Option(False, help="учитывать и непроверенные вопросы"),
     modes: str = typer.Option("bm25,dense,hybrid,hybrid_rerank", help="через запятую"),
+    all_splits: bool = typer.Option(
+        False, "--all-splits", help="и вопросы с gold в train/val-документах (не для итогов)"
+    ),
 ) -> None:
     """Hit@5, Recall@5, MRR@10 по режимам → reports/retrieval.md."""
     from rich.table import Table
@@ -309,8 +374,15 @@ def eval_retrieval(
     from kznorms.eval.eval_retrieval import evaluate, load_items, to_markdown, write_misses
     from kznorms.paths import REPORTS
     from kznorms.retrieval.retriever import Retriever
+    from kznorms.splits import item_split, load_splits
 
+    split_of = load_splits()
     items = [it for it in load_items() if drafts or it.verified]
+    if not all_splits:
+        before = len(items)
+        items = [it for it in items if item_split(it, split_of) == "test"]
+        if skipped := before - len(items):
+            print(f"[dim]пропущено {skipped} вопр. не из test-документов (--all-splits)[/dim]")
     if not items:
         print(
             "[yellow]нет проверенных вопросов[/yellow]: пройди `kznorms qa-review` "
@@ -338,6 +410,7 @@ def eval_retrieval(
 
     REPORTS.mkdir(parents=True, exist_ok=True)
     note = "ЧЕРНОВИК: в выборке есть непроверенные вопросы." if drafts else "Только verified."
+    note += " Все сплиты." if all_splits else " Только test-документы."
     (REPORTS / "retrieval.md").write_text(
         to_markdown(results, n_ans, len(items) - n_ans, note), encoding="utf-8"
     )

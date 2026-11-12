@@ -17,6 +17,8 @@ class Source(BaseModel):
     version_date: str = ""
     lang: Literal["ru", "kk"] = "ru"
     topic: str = ""
+    group: str = ""  # пара СН+СП по одной теме — единица сплита (см. kznorms.splits)
+    split: Literal["", "train", "val", "test"] = ""
 
 
 class Block(BaseModel):
