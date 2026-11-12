@@ -1,5 +1,5 @@
 from kznorms.rag.prompts import Passage, build_messages
-from kznorms.rag.verify import verify
+from kznorms.rag.verify import numbers, verify
 from kznorms.schemas import Answer, Citation
 
 P = [
@@ -44,6 +44,47 @@ def test_empty_quote_fails():
 def test_number_from_nowhere_fails():
     a = ans("answered", "Не менее 1,2 м.", ("doc:5.3.9", "не менее 1,05 м"))
     assert "1.2" in verify(a, P).problems[-1]
+
+
+P2 = [
+    *P,
+    Passage(
+        "doc:5.3.10", "СН РК 3.02-01-2023", "5.3.10", "Пределы огнестойкости I -не менее 1,5 ч."
+    ),
+]
+
+
+def test_punctuation_and_spacing_do_not_matter():
+    a = ans("answered", "Не менее 1,5 ч.", ("doc:5.3.10", "огнестойкости I - не менее 1,5 ч"))
+    assert verify(a, P2).ok
+
+
+def test_corrected_word_is_not_a_quote():
+    a = ans("answered", "Не менее 1,05 м.", ("doc:5.3.9", "ширина марша лестниц должна быть"))
+    assert not verify(a, P2).ok
+
+
+def test_quote_from_another_clause_is_named():
+    a = ans("answered", "Не менее 1,5 ч.", ("doc:5.3.9", "не менее 1,5 ч"))
+    assert "она из doc:5.3.10" in verify(a, P2).problems[0]
+
+
+def test_clause_number_of_uncited_passage_is_allowed():
+    a = ans("answered", "Не менее 1,05 м; см. также п. 5.3.10.", ("doc:5.3.9", "не менее 1,05 м"))
+    assert verify(a, P2).ok
+
+
+def test_list_markers_are_not_numbers():
+    assert numbers("1) не менее 1,05 м; 12) далее; 2) 6 м.") == {"1.05", "6"}
+
+
+def test_number_in_context_but_not_quoted_vs_invented():
+    a = ans("answered", "1,05 м и 1,5 ч, а также 7 м.", ("doc:5.3.9", "не менее 1,05 м"))
+    problems = verify(a, P2).problems
+    assert problems == [
+        "числа из контекста без цитаты: ['1.5']",
+        "числа, которых нет в контексте: ['7']",
+    ]
 
 
 def test_number_from_question_is_allowed():

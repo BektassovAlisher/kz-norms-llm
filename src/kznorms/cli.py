@@ -442,6 +442,81 @@ def export() -> None:
     _todo("export")
 
 
+@app.command("eval-generation")
+def eval_generation(
+    model: str = typer.Option("base", help="base | big"),
+    modes: str = typer.Option("oracle,e2e", help="через запятую"),
+    drafts: bool = typer.Option(False, help="учитывать и непроверенные вопросы"),
+    all_splits: bool = typer.Option(False, "--all-splits", help="и вопросы не из test"),
+    limit: int = typer.Option(0, help="только первые N вопросов (быстрая проверка)"),
+    reverify: bool = typer.Option(
+        False, help="не звать LLM: пересчитать verify и метрики по сохранённому .jsonl"
+    ),
+) -> None:
+    """Ответы LLM по тестовому набору (oracle / e2e) → reports/generation_<model>.md."""
+    from rich.progress import track
+    from rich.table import Table
+
+    from kznorms.eval.eval_generation import (
+        LABELS,
+        _fmt,
+        load_records,
+        run_item,
+        save_records,
+        summarize,
+        to_markdown,
+    )
+    from kznorms.eval.eval_generation import (
+        reverify as reverify_records,
+    )
+    from kznorms.eval.eval_retrieval import load_items
+    from kznorms.paths import REPORTS
+    from kznorms.rag.llm_client import get_llm
+    from kznorms.rag.pipeline import RagPipeline
+    from kznorms.splits import item_split, load_splits
+
+    jsonl = REPORTS / f"generation_{model}.jsonl"
+    mode_list = [m.strip() for m in modes.split(",")]
+    if reverify:
+        records = [r for r in load_records(jsonl) if r.mode in mode_list]
+        reverify_records(records)
+    else:
+        split_of = load_splits()
+        items = [it for it in load_items() if drafts or it.verified]
+        if not all_splits:
+            items = [it for it in items if item_split(it, split_of) == "test"]
+        items = items[:limit] if limit else items
+        if not items:
+            print("[yellow]нет вопросов[/yellow]: пройди `kznorms qa-review` или --drafts")
+            raise typer.Exit(1)
+        pipe = RagPipeline(get_llm(model))
+        pipe.retriever.warmup("hybrid_rerank")
+        k = pipe.retriever.cfg["final_k"]
+        records = [
+            run_item(pipe, it, m, k)
+            for m in mode_list
+            for it in track(items, description=f"{model}: {m}")
+        ]
+    summaries = [summarize(records, m) for m in mode_list]
+
+    table = Table(title=f"Генерация {model}: {summaries[0].n_ans} с ответом, "
+                  f"{summaries[0].n_unans} без" + (" (черновик)" if drafts else ""))  # fmt: skip
+    table.add_column("метрика")
+    for s in summaries:
+        table.add_column(s.mode, justify="right")
+    for key, label in LABELS.items():
+        table.add_row(label, *(_fmt(s.metrics.get(key), key) for s in summaries))
+    print(table)
+
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    note = "ЧЕРНОВИК: есть непроверенные вопросы." if drafts else "Только verified."
+    note += " Все сплиты." if all_splits else " Только test-документы."
+    md = REPORTS / f"generation_{model}.md"
+    md.write_text(to_markdown(summaries, records, model, note), encoding="utf-8")
+    save_records(records, jsonl)
+    print(f"→ {md} (+ .jsonl — все ответы для разбора)")
+
+
 @app.command("eval")
 def eval_() -> None:
     """Посчитать метрики поиска и генерации → reports/results.md."""

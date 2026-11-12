@@ -2,6 +2,12 @@
 
 Это проверка «не выдумано ли», а не «правильно ли»: несуществующий пункт, цитата, которой
 нет в тексте, число из головы. Используется трижды: фильтр синтетики, рантайм, метрика.
+
+«Дословно» — с точностью до пробелов, пунктуации, регистра и ё: в PDF-тексте норм
+«I -теплоизолирующей» и «стены, - непрерывный», и требовать от модели воспроизводить такие
+артефакты бессмысленно.
+Но слова и цифры должны совпасть: если модель «исправила» опечатку нормы («зоной» → «зоне»),
+это уже не цитата.
 """
 
 import re
@@ -10,12 +16,15 @@ from dataclasses import dataclass, field
 from kznorms.rag.prompts import Passage
 from kznorms.schemas import Answer
 
-NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
+# число, но не маркер списка «1)»; вторая проверка не даёт откусить «1» от «12)»
+NUMBER = re.compile(r"\d+(?:[.,]\d+)*(?![.,]?\d)(?!\))")
+_NON_WORD = re.compile(r"[^\w]+")
 
 
 def normalize(text: str) -> str:
-    """Без учёта пробелов/переносов и ё: фрагменты длинных пунктов склеены через пробел."""
-    return " ".join(text.replace("ё", "е").replace("Ё", "Е").split())
+    """Только слова и цифры через один пробел, в нижнем регистре: пунктуация, переносы,
+    ё и регистр не важны (цитата из начала пункта «не менее…» при «Не менее…» в тексте)."""
+    return " ".join(_NON_WORD.sub(" ", text.lower().replace("ё", "е")).split())
 
 
 def numbers(text: str) -> set[str]:
@@ -35,6 +44,7 @@ def verify(answer: Answer, passages: list[Passage], question: str = "") -> Verdi
     """question — чтобы числа из самого вопроса («на 20-м метре») не считались выдуманными."""
     v = Verdict()
     by_id = {p.clause_id: p for p in passages}
+    texts = {p.clause_id: normalize(p.text) for p in passages}
 
     if answer.status == "not_found":
         if answer.citations:
@@ -43,17 +53,32 @@ def verify(answer: Answer, passages: list[Passage], question: str = "") -> Verdi
     if not answer.citations:
         v.problems.append(f"status={answer.status}, но нет ни одной цитаты")
 
-    allowed = numbers(question)  # числа, на которые ответ имеет право опираться
+    # числа, на которые ответ имеет право опираться: из вопроса и идентификаторы контекста
+    # («п. 4.2.25», «СП РК 3.02-101-2012») — это ссылки, а не значения
+    allowed = numbers(question)
+    for p in passages:
+        allowed |= numbers(p.number) | numbers(p.doc_code)
     for c in answer.citations:
-        p = by_id.get(c.clause_id)
-        if p is None:
+        if c.clause_id not in by_id:
             v.problems.append(f"пункта {c.clause_id} нет в контексте")
             continue
-        if not c.quote.strip() or normalize(c.quote) not in normalize(p.text):
-            v.problems.append(f"цитата не найдена дословно в {c.clause_id}: {c.quote[:60]!r}")
+        q = normalize(c.quote)
+        if not q:
+            v.problems.append(f"пустая цитата в {c.clause_id}")
             continue
-        allowed |= numbers(c.quote) | numbers(p.number) | numbers(p.doc_code)
+        if q not in texts[c.clause_id]:
+            elsewhere = [cid for cid, t in texts.items() if q in t]
+            where = f" — она из {elsewhere[0]}" if elsewhere else ""
+            v.problems.append(f"цитата не найдена в {c.clause_id}{where}: {c.quote[:60]!r}")
+            continue
+        allowed |= numbers(c.quote)
 
     if extra := numbers(answer.answer) - allowed:
-        v.problems.append(f"числа в ответе без опоры на цитату: {sorted(extra)}")
+        # разные ошибки: число есть в контексте, но цитата его не покрывает (неполная
+        # цитата) — или числа нет нигде (выдумано / из памяти модели)
+        in_ctx = extra & set().union(*(numbers(p.text) for p in passages))
+        if in_ctx:
+            v.problems.append(f"числа из контекста без цитаты: {sorted(in_ctx)}")
+        if invented := extra - in_ctx:
+            v.problems.append(f"числа, которых нет в контексте: {sorted(invented)}")
     return v

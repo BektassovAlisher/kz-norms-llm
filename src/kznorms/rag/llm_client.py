@@ -16,6 +16,7 @@ class LLM:
         self.client = OpenAI(base_url=base_url, api_key=api_key, timeout=120)
         self.model = model
         self.last_ms = 0.0
+        self.last_finish = ""  # "length" — ответ обрезан по max_tokens
 
     def chat_json(
         self, messages: list[dict[str, str]], schema: dict, max_tokens: int = 1024
@@ -33,6 +34,7 @@ class LLM:
             },
         )
         self.last_ms = (time.perf_counter() - t) * 1000
+        self.last_finish = resp.choices[0].finish_reason or ""
         return resp.choices[0].message.content or ""
 
 
