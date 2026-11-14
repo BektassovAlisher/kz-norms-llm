@@ -1,21 +1,25 @@
 model: unsloth/Qwen3-4B-Instruct-2507
-load_in_4bit: true
-max_seq_length: 3072
+load_in_4bit: true          # QLoRA: база в NF4 (заморожена), учатся только адаптеры LoRA
+max_seq_length: 4096        # самые длинные примеры ≈ 3070 токенов — 3072 было впритык
 lora:
-  r: 16
+  r: 16                     # ранг адаптеров; абляция r 8/16/32
   alpha: 16
   dropout: 0.0
   target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
 train:
   epochs: 2
-  lr: 2.0e-4
+  lr: 2.0e-4                # стандарт для LoRA (полное дообучение — на порядок меньше)
   scheduler: cosine
   warmup_ratio: 0.05
   batch_size: 2
-  grad_accum: 8
+  grad_accum: 8             # эффективный батч 16
   optim: adamw_8bit
-  bf16: true
+  bf16: true                # 3060 Ti (Ampere) умеет bf16
+  logging_steps: 10
   eval_steps: 100
+  weight_decay: 0.0
+val_examples: 200           # из data/sft/val.jsonl — оценка loss на отложенных документах
 train_on_responses_only: true
+seed: 42
 output_dir: artifacts/qwen3-4b-lora
 gguf_quant: q4_k_m

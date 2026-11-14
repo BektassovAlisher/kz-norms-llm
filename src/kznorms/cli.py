@@ -464,9 +464,25 @@ def synth(
 
 
 @app.command("train-llm")
-def train_llm(config: str = "sft_qwen3_4b") -> None:
-    """QLoRA-дообучение Qwen3-4B через Unsloth."""
-    _todo(f"train-llm ({config})")
+def train_llm(
+    config: str = typer.Option("sft_qwen3_4b", help="конфиг из configs/"),
+    n_train: int = typer.Option(0, help="первые N примеров (абляции 500/1000/2000/4000); 0 — все"),
+    max_steps: int = typer.Option(0, help="ограничить число шагов (пробный запуск); 0 — эпохи"),
+    run_name: str = typer.Option(None, help="имя прогона → artifacts/qwen3-4b-lora/<имя>"),
+    r: int = typer.Option(0, help="ранг LoRA вместо конфига (абляция r 8/16/32)"),
+) -> None:
+    """QLoRA-дообучение Qwen3-4B через Unsloth (только WSL2/Linux) → адаптер + summary.json."""
+    import json
+
+    from kznorms.config import load_yaml
+    from kznorms.train.sft_unsloth import train
+
+    cfg = load_yaml(config)
+    if r:
+        cfg["lora"]["r"] = cfg["lora"]["alpha"] = r
+    summary = train(cfg, n_train or None, max_steps or None, run_name)
+    summary.pop("config")
+    typer.echo(json.dumps(summary, ensure_ascii=False, indent=1))
 
 
 @app.command("train-emb")
