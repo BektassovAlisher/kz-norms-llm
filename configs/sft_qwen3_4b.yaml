@@ -1,4 +1,4 @@
-model: unsloth/Qwen3-4B-Instruct-2507
+model: unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit  # динамический 4-бит (3,55 ГБ)
 load_in_4bit: true          # QLoRA: база в NF4 (заморожена), учатся только адаптеры LoRA
 max_seq_length: 4096        # самые длинные примеры ≈ 3070 токенов — 3072 было впритык
 lora:
