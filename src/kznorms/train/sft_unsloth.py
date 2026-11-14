@@ -3,9 +3,16 @@
 Что важно и почему:
 - QLoRA: база в 4 битах (NF4) заморожена, учатся только адаптеры LoRA во всех линейных
   слоях — 4B-модель помещается в 8 ГБ, а адаптер весит десятки мегабайт.
-- Текст примера собирается шаблоном чата самой модели (`apply_chat_template`) — тем же,
-  что llama-server берёт из GGUF (`--jinja`). Разойдутся спецтокены — модель на инференсе
-  увидит не тот формат, на котором училась (train/serve skew).
+- Текст примера = ровно то, что модель видит и пишет в проде: промпт для генерации
+  (`apply_chat_template(..., add_generation_prompt=True)` — сверено с `/apply-template`
+  llama-server, совпадает символ в символ) + ответ + `<|im_end|>`. Полный шаблон диалога
+  НЕ годится: шаблон Qwen3 вставляет перед ответом пустой `<think>
+
+</think>
+
+`, а
+  в проде модель сразу пишет JSON (грамматика llama-server). Обучи на think — получишь
+  train/serve skew на уровне спецтокенов (поймано `check_mask` на пробном запуске).
 - Loss только по ответу ассистента: системный промпт и контекст — ~95% токенов примера;
   учить их — значит тратить ёмкость на запоминание норм и промпта, а не навыка ответа.
   Метки всего, кроме ответа, = −100 (игнорируются в loss). `check_mask` проверяет, что
@@ -34,6 +41,14 @@ def load_sft(path: Path, n: int | None = None, seed: int = 42) -> list[dict]:
     rows = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
     random.Random(seed).shuffle(rows)
     return rows[:n] if n else rows
+
+
+def build_text(messages: list[dict], tokenizer) -> str:
+    """Промпт прода (system+user, «ассистент, начинай») + ответ + конец реплики."""
+    prompt = tokenizer.apply_chat_template(
+        messages[:-1], tokenize=False, add_generation_prompt=True
+    )
+    return prompt + messages[-1]["content"] + tokenizer.eos_token
 
 
 def response_text(input_ids: list[int], labels: list[int], tokenizer) -> str:
@@ -91,7 +106,7 @@ def train(
     )
 
     def to_dataset(rows: list[dict]) -> tuple[Dataset, int]:
-        texts = [tok.apply_chat_template(r["messages"], tokenize=False) for r in rows]
+        texts = [build_text(r["messages"], tok) for r in rows]
         fits = [t for t in texts if len(tok(t, add_special_tokens=False).input_ids) <= max_len]
         return Dataset.from_dict({"text": fits}), len(texts) - len(fits)
 
@@ -112,7 +127,7 @@ def train(
         max_steps=max_steps or -1,
         learning_rate=tcfg["lr"],
         lr_scheduler_type=tcfg["scheduler"],
-        warmup_ratio=tcfg["warmup_ratio"],
+        warmup_steps=tcfg["warmup_ratio"],  # transformers 5: доля < 1 — это доля шагов
         weight_decay=tcfg["weight_decay"],
         optim=tcfg["optim"],
         bf16=tcfg["bf16"],

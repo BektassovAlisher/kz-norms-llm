@@ -51,3 +51,33 @@ def test_mask_check_fails_when_mask_shifted():
     ds = FakeDataset([row("system", 'user {"status": "answered"}')])  # в loss попал вопрос
     with pytest.raises(RuntimeError, match="маска"):
         check_mask(ds, FakeTok())
+
+
+class TemplateTok:
+    """Шаблон как у Qwen3: полный диалог вставляет пустой think перед ответом."""
+
+    eos_token = "<|im_end|>"
+
+    def apply_chat_template(self, messages, tokenize=False, add_generation_prompt=False):
+        out = "".join(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>\n" for m in messages
+                      if m["role"] != "assistant")  # fmt: skip
+        if any(m["role"] == "assistant" for m in messages):
+            out += "<|im_start|>assistant\n<think>\n\n</think>\n\n" + messages[-1]["content"]
+            return out + "<|im_end|>\n"
+        return out + ("<|im_start|>assistant\n" if add_generation_prompt else "")
+
+
+def test_build_text_is_prod_prompt_plus_answer_without_think():
+    from kznorms.train.sft_unsloth import build_text
+
+    msgs = [
+        {"role": "system", "content": "S"},
+        {"role": "user", "content": "U"},
+        {"role": "assistant", "content": '{"status":"answered"}'},
+    ]
+    text = build_text(msgs, TemplateTok())
+    assert text == (
+        "<|im_start|>system\nS<|im_end|>\n<|im_start|>user\nU<|im_end|>\n"
+        '<|im_start|>assistant\n{"status":"answered"}<|im_end|>'
+    )
+    assert "<think>" not in text
