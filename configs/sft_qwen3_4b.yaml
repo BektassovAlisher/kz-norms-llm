@@ -22,4 +22,7 @@ val_examples: 200           # из data/sft/val.jsonl — оценка loss на
 train_on_responses_only: true
 seed: 42
 output_dir: artifacts/qwen3-4b-lora
-gguf_quant: q4_k_m
+# экспорт: адаптер → GGUF для llama-server --lora (база в проде — та же Q4_K_M)
+lora_gguf_dir: artifacts/lora
+base_model_id: Qwen/Qwen3-4B-Instruct-2507   # конвертеру нужен только config.json базы
+llama_cpp_dir: ~/llama.cpp                    # скрипты llama.cpp той же сборки (b12317)

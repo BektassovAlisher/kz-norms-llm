@@ -492,14 +492,27 @@ def train_emb(config: str = "emb_bge_m3") -> None:
 
 
 @app.command()
-def export() -> None:
-    """Слить LoRA и выгрузить GGUF."""
-    _todo("export")
+def export(
+    run: str = typer.Option(..., help="имя прогона: artifacts/qwen3-4b-lora/<run>/adapter"),
+    config: str = typer.Option("sft_qwen3_4b", help="конфиг обучения"),
+    copy_to: str = typer.Option(
+        None, help="куда ещё скопировать .gguf, например /mnt/c/.../kz-norms-llm/artifacts/lora"
+    ),
+) -> None:
+    """LoRA-адаптер → GGUF для llama-server --lora (только WSL2/Linux)."""
+    from pathlib import Path
+
+    from kznorms.config import load_yaml
+    from kznorms.train.export_gguf import export_lora
+
+    out = export_lora(run, load_yaml(config), Path(copy_to) if copy_to else None)
+    print(f"[green]готово[/green] → {out}")
+    print(f"llama-server ... --lora artifacts/lora/{out.name}")
 
 
 @app.command("eval-generation")
 def eval_generation(
-    model: str = typer.Option("base", help="base | big"),
+    model: str = typer.Option("base", help="base | ft | big"),
     modes: str = typer.Option("oracle,e2e", help="через запятую"),
     drafts: bool = typer.Option(False, help="учитывать и непроверенные вопросы"),
     all_splits: bool = typer.Option(False, "--all-splits", help="и вопросы не из test"),
@@ -507,8 +520,11 @@ def eval_generation(
     reverify: bool = typer.Option(
         False, help="не звать LLM: пересчитать verify и метрики по сохранённому .jsonl"
     ),
+    tag: str = typer.Option(
+        None, help="имя отчёта (по умолчанию base / ft_<адаптер>); для --reverify обязательно"
+    ),
 ) -> None:
-    """Ответы LLM по тестовому набору (oracle / e2e) → reports/generation_<model>.md."""
+    """Ответы LLM по тестовому набору (oracle / e2e) → reports/generation_<tag>.md."""
     from rich.progress import track
     from rich.table import Table
 
@@ -530,8 +546,11 @@ def eval_generation(
     from kznorms.rag.pipeline import RagPipeline
     from kznorms.splits import item_split, load_splits
 
-    jsonl = REPORTS / f"generation_{model}.jsonl"
     mode_list = [m.strip() for m in modes.split(",")]
+    llm = None if reverify else get_llm(model)
+    if not tag:
+        tag = model if model != "ft" else llm.model.replace(":", "_")  # ft_<адаптер>
+    jsonl = REPORTS / f"generation_{tag}.jsonl"
     if reverify:
         records = [r for r in load_records(jsonl) if r.mode in mode_list]
         reverify_records(records)
@@ -544,17 +563,17 @@ def eval_generation(
         if not items:
             print("[yellow]нет вопросов[/yellow]: пройди `kznorms qa-review` или --drafts")
             raise typer.Exit(1)
-        pipe = RagPipeline(get_llm(model))
+        pipe = RagPipeline(llm)
         pipe.retriever.warmup("hybrid_rerank")
         k = pipe.retriever.cfg["final_k"]
         records = [
             run_item(pipe, it, m, k)
             for m in mode_list
-            for it in track(items, description=f"{model}: {m}")
+            for it in track(items, description=f"{tag}: {m}")
         ]
     summaries = [summarize(records, m) for m in mode_list]
 
-    table = Table(title=f"Генерация {model}: {summaries[0].n_ans} с ответом, "
+    table = Table(title=f"Генерация {tag}: {summaries[0].n_ans} с ответом, "
                   f"{summaries[0].n_unans} без" + (" (черновик)" if drafts else ""))  # fmt: skip
     table.add_column("метрика")
     for s in summaries:
@@ -566,15 +585,15 @@ def eval_generation(
     REPORTS.mkdir(parents=True, exist_ok=True)
     note = "ЧЕРНОВИК: есть непроверенные вопросы." if drafts else "Только verified."
     note += " Все сплиты." if all_splits else " Только test-документы."
-    md = REPORTS / f"generation_{model}.md"
-    md.write_text(to_markdown(summaries, records, model, note), encoding="utf-8")
+    md = REPORTS / f"generation_{tag}.md"
+    md.write_text(to_markdown(summaries, records, tag, note), encoding="utf-8")
     save_records(records, jsonl)
     print(f"→ {md} (+ .jsonl — все ответы для разбора)")
 
 
 @app.command()
 def ui(
-    model: str = typer.Option("base", help="base | big"),
+    model: str = typer.Option("base", help="base | ft | big"),
     port: int = typer.Option(7860, help="порт веб-интерфейса"),
 ) -> None:
     """Веб-интерфейс Gradio: http://127.0.0.1:7860 (нужен запущенный llama-server)."""

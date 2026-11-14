@@ -63,3 +63,18 @@ def test_broken_json_becomes_not_found():
     resp, _ = run('{"status": "answered", "answer": ')
     assert resp.answer.status == "not_found" and not resp.verified
     assert "JSON" in resp.problems[0]
+
+
+def test_get_llm_checks_adapter_on_server(monkeypatch):
+    import pytest
+
+    import kznorms.rag.llm_client as lc
+
+    monkeypatch.setattr(lc, "active_adapters", lambda url: ["artifacts/lora/pilot-f16.gguf"])
+    assert lc.get_llm("ft").model == "ft:pilot-f16"
+    with pytest.raises(SystemExit, match="адаптер"):
+        lc.get_llm("base")  # база на сервере с адаптером — ошибка, а не тихая подмена
+    monkeypatch.setattr(lc, "active_adapters", lambda url: [])
+    assert lc.get_llm("base").model == "local"
+    with pytest.raises(SystemExit, match="--lora"):
+        lc.get_llm("ft")
