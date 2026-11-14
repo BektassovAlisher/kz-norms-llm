@@ -396,6 +396,19 @@ Qwen3-8B-Q4_K_M.gguf` (unsloth, 5,0 ГБ); Qwen3-14B (9 ГБ) в 8 ГБ не в�
   На 6 спорных вопросах поведение не изменилось — их всё ещё надо разметить в `qa-review`.
 - Выборка мала (57 + 10), разница в 1–3 вопроса — шум; выводы — по крупным сдвигам.
 
+**WSL2 для обучения (готово, 14.11.2026).**
+- Ubuntu 24.04 (`wsl -d Ubuntu-24.04`, пользователь manetti), WSL 2, ядро 6.18. GPU виден
+  через драйвер Windows 621.01 — отдельный драйвер в Linux не ставится.
+- `C:\Users\user\.wslconfig`: `memory=12GB`, `swap=8GB` (по умолчанию WSL получает половину
+  RAM — 8 ГБ, мало для загрузки модели); применяется после `wsl --shutdown`.
+- Поставлены build-essential (gcc 13 — Triton/Unsloth компилируют ядра на лету) и uv 0.13.8.
+- Проект в Linux: `~/kz-norms-llm` (не `/mnt/c` — файлы Windows через мост читаются
+  медленно). Склонирован из папки Windows: remote `win` → `/mnt/c/Users/user/Desktop/
+  kz-norms-llm`. Код правится в Windows, в WSL — `git pull win main`; GitHub-доступ в WSL
+  не нужен. Данные (`data/sft`, `data/processed`) копируются с диска C (они в .gitignore).
+- `uv sync` в WSL: torch 2.14.1+cu130, `torch.cuda.is_available()` → True, RTX 3060 Ti;
+  86 тестов зелёные и под Linux.
+
 ## Дальше
 1. Довести тестовый набор: владелец пишет 30–50 вопросов **сам, не глядя в пункты**
    (как спросил бы инженер-проектировщик), потом находит gold через `kznorms search`;
