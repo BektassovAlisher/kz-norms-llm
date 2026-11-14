@@ -409,6 +409,26 @@ Qwen3-8B-Q4_K_M.gguf` (unsloth, 5,0 ГБ); Qwen3-14B (9 ГБ) в 8 ГБ не в�
 - `uv sync` в WSL: torch 2.14.1+cu130, `torch.cuda.is_available()` → True, RTX 3060 Ti;
   86 тестов зелёные и под Linux.
 
+**Шаг 8 (начат): QLoRA через Unsloth в WSL2.** `train/sft_unsloth.py`, конфиг
+`configs/sft_qwen3_4b.yaml`, CLI `kznorms train-llm [--n-train N] [--max-steps N]
+[--run-name X] [--r R]` → `artifacts/qwen3-4b-lora/<run>/{adapter,summary.json,log_history.json}`.
+- Ставится `uv sync --extra train` (только Linux): unsloth 2026.11.3, trl 1.15, transformers
+  5.17, peft 0.21, bitsandbytes 0.50, torch 2.14.1+cu130. xformers собран под другой torch —
+  Unsloth сам переходит на SDPA, это нормально. В transformers 5 `warmup_ratio` →
+  `warmup_steps` (доля < 1 трактуется как доля шагов).
+- База для обучения — `unsloth/Qwen3-4B-Instruct-2507-unsloth-bnb-4bit` (динамический 4-бит,
+  3,55 ГБ). Полные bf16-веса (8 ГБ) понадобятся только если вливать адаптер в модель.
+- **Ловушка шаблона (поймана `check_mask`)**: шаблон чата этой сборки Qwen3 в полном диалоге
+  вставляет перед ответом пустой `<think>\n\n</think>\n\n`, а llama-server (`/apply-template`)
+  строит промпт `…<|im_start|>assistant\n` — и модель сразу пишет JSON. Обучающий текст
+  теперь = `apply_chat_template(system+user, add_generation_prompt=True)` + ответ +
+  `<|im_end|>` (`build_text`), сверено с сервером символ в символ.
+- Loss только по ответу (`train_on_responses_only`): в loss идёт 5,4% токенов примера.
+  Подвыборки для абляций вложенные (перемешивание с зерном → первые N).
+- Пробный запуск (200 примеров, 30 шагов, эфф. батч 16): ~21 с/шаг, **пик VRAM 5,74 ГБ**,
+  train loss 0.117, **eval loss 0.058** (val-документы), 13,7 мин, адаптер 137 МБ.
+  Оценка полного прогона: 5131 × 2 эпохи = 642 шага ≈ 3,7 ч + оценки ≈ 4 ч.
+
 ## Дальше
 1. Довести тестовый набор: владелец пишет 30–50 вопросов **сам, не глядя в пункты**
    (как спросил бы инженер-проектировщик), потом находит gold через `kznorms search`;
