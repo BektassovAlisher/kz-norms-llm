@@ -11,6 +11,7 @@ nf_max_rerank_ratio: 0.8     # not_found-контекст: без пунктов
 near_dup_jaccard: 0.6        # и без почти дословных дублей gold
 dedup_jaccard: 0.8           # вопросы к одному пункту с такой похожестью — дубли
 max_answer_chars: 700
+min_answer_chars: 25           # короче — «Да, можно» без условия (итерация 2)
 workers: 4                   # параллельных запросов к учителю
 rpm: 10                      # не чаще N запросов в минуту (бесплатный Gemini ≈ 10–15); 0 — без лимита
 teacher_params: {}           # доп. параметры запроса к API, например {reasoning_effort: low}

@@ -613,6 +613,50 @@ def ui(
     build_app(lambda: pipe).launch(server_name="127.0.0.1", server_port=port, css=CSS)
 
 
+@app.command()
+def judge(
+    tags: str = typer.Option(..., help="отчёты через запятую: base_prompt_v3,ft_full_r16-f16"),
+    modes: str = typer.Option("oracle,e2e", help="через запятую"),
+) -> None:
+    """LLM-судья (Qwen3-8B в llama-server) по generation_<tag>.jsonl: верно / неполно / неверно."""
+    from rich.table import Table
+
+    from kznorms.config import load_yaml
+    from kznorms.eval.eval_generation import load_records
+    from kznorms.eval.judge import (
+        VERDICTS,
+        check_judge_model,
+        judge_record,
+        save_judgments,
+        summarize_judgments,
+    )
+    from kznorms.paths import REPORTS
+    from kznorms.synth.gen_questions import pmap
+    from kznorms.synth.teacher import get_teacher
+
+    teacher = get_teacher("local", load_yaml("synth"))
+    check_judge_model(teacher.model)
+    mode_list = [m.strip() for m in modes.split(",")]
+    table = Table(title=f"Судья {teacher.model}: доля вопросов с ответом")
+    table.add_column("отчёт")
+    table.add_column("режим")
+    for v in (*VERDICTS, "отказ"):
+        table.add_column(v, justify="right")
+    for tag in [x.strip() for x in tags.split(",")]:
+        records = [
+            r for r in load_records(REPORTS / f"generation_{tag}.jsonl") if r.mode in mode_list
+        ]
+        js = [j for j in pmap(lambda r: judge_record(teacher, r), records, 3, tag) if j]
+        save_judgments(js, REPORTS / f"judge_{tag}.jsonl")
+        for m in mode_list:
+            s = summarize_judgments(js, m)
+            table.add_row(tag, m, *(f"{s[v]:.2f}" for v in (*VERDICTS, "отказ")))
+            if s["ошибка судьи"]:
+                print(f"[yellow]{tag}/{m}: ошибок судьи {s['ошибка судьи']:.0%}[/yellow]")
+    print(table)
+    print(f"вердикты с причинами → {REPORTS}/judge_<отчёт>.jsonl")
+
+
 @app.command("eval")
 def eval_() -> None:
     """Посчитать метрики поиска и генерации → reports/results.md."""

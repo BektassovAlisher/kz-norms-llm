@@ -277,3 +277,11 @@ def test_soft_refusal_without_citations_is_relabeled():
     assert soft.answer == Answer(status="not_found", answer=NOT_FOUND_TEXT)
     assert cited.reasons == ["учитель нашёл ответ без gold"]
     assert gold_soft.reasons  # с gold мягкий отказ не исправляем — просто плохой пример
+
+
+def test_incomplete_answers_are_dropped():
+    from kznorms.synth.filter import incomplete
+
+    assert incomplete("Допускается в следующих случаях:", 25) == ["ответ оборван на двоеточии"]
+    assert incomplete("Да, можно", 25) == ["ответ слишком короткий"]
+    assert incomplete("Не менее 1,05 м для лестниц жилых зданий.", 25) == []

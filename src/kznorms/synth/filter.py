@@ -31,7 +31,7 @@ def relabel_soft_refusal(ex: SynthExample) -> None:
         ex.answer = Answer(status="not_found", answer=NOT_FOUND_TEXT)
 
 
-def check(ex: SynthExample, max_answer_chars: int) -> list[str]:
+def check(ex: SynthExample, max_answer_chars: int, min_answer_chars: int = 0) -> list[str]:
     a = ex.answer
     if a is None:
         return ["нет ответа по схеме"]
@@ -45,7 +45,23 @@ def check(ex: SynthExample, max_answer_chars: int) -> list[str]:
         reasons.append("gold не процитирован")
     if len(a.answer) > max_answer_chars:
         reasons.append("слишком длинный ответ")
+    reasons += incomplete(a.answer, min_answer_chars)
     return reasons
+
+
+def incomplete(answer: str, min_chars: int) -> list[str]:
+    """Признаки неполного ответа, которые ученик иначе перенимает у учителя.
+
+    Итерация 1: четверть ответов учителя — «Да, можно», «0,3 м»; ученик выучил этот стиль,
+    и судья видел ответы без условия применения. Обрыв на «:» — перечень, которого нет.
+    """
+    text = answer.strip()
+    out = []
+    if text.endswith(":"):
+        out.append("ответ оборван на двоеточии")
+    if len(text) < min_chars:
+        out.append("ответ слишком короткий")
+    return out
 
 
 def dedup(examples: list[SynthExample], threshold: float) -> None:
@@ -64,6 +80,6 @@ def dedup(examples: list[SynthExample], threshold: float) -> None:
 def apply_filter(examples: list[SynthExample], cfg: dict) -> list[SynthExample]:
     for ex in examples:
         relabel_soft_refusal(ex)
-        ex.reasons = check(ex, cfg["max_answer_chars"])
+        ex.reasons = check(ex, cfg["max_answer_chars"], cfg.get("min_answer_chars", 0))
     dedup(examples, cfg["dedup_jaccard"])
     return [ex for ex in examples if not ex.reasons]
