@@ -1,7 +1,16 @@
 """CLI: каждый шаг пайплайна — отдельная команда (`uv run kznorms --help`)."""
 
+import sys
+
 import typer
 from rich import print
+
+# Когда вывод идёт не в окно консоли, а в трубу или файл (`| tee`, `> log.txt`, терминал
+# IDE), Python на Windows кодирует его в ANSI-кодировке cp1251 — и падает на «→», «≥», «★».
+# Переводим stdout/stderr на UTF-8 один раз при старте CLI.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
 
 app = typer.Typer(help="kz-norms-llm: пайплайн от норм до дообученной модели", no_args_is_help=True)
 
