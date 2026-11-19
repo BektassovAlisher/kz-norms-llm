@@ -31,6 +31,7 @@ uv run kznorms eval-retrieval [--drafts] [--all-splits]  # метрики пои
 uv run kznorms ask "<вопрос>"  # RAG: поиск → Qwen3-4B (llama-server :8085) → verify
 uv run kznorms eval-generation --drafts  # oracle/e2e → reports/generation_base.md; --reverify без LLM
 uv run kznorms ui              # Gradio → http://127.0.0.1:7860 (нужен llama-server)
+uv run kznorms serve           # FastAPI → http://127.0.0.1:8000/docs: /ask, /search, /health
 uv run kznorms synth --stage questions|contexts|answers  # синтетика по этапам → data/sft/
 powershell -ExecutionPolicy Bypass -File scripts\synth_local.ps1  # все этапы с локальным Qwen3-8B
 # в WSL (~/kz-norms-llm): uv sync --extra train && uv run kznorms train-llm [--n-train 500 --max-steps 30]

@@ -647,6 +647,28 @@ def ui(
 
 
 @app.command()
+def serve(
+    model: str = typer.Option("base", help="base | ft | big"),
+    port: int = typer.Option(8000, help="порт API"),
+) -> None:
+    """HTTP API (FastAPI): /ask, /search, /health; документация — http://127.0.0.1:8000/docs."""
+    import uvicorn
+
+    from kznorms.api.main import create_app
+
+    def factory():
+        from kznorms.rag.llm_client import get_llm
+        from kznorms.rag.pipeline import RagPipeline
+
+        pipe = RagPipeline(get_llm(model))
+        pipe.retriever.warmup("hybrid_rerank")
+        return pipe
+
+    print("загружаю поиск (BGE-M3, реранкер)…")
+    uvicorn.run(create_app(factory), host="127.0.0.1", port=port)
+
+
+@app.command()
 def judge(
     tags: str = typer.Option(..., help="отчёты через запятую: base_prompt_v3,ft_full_r16-f16"),
     modes: str = typer.Option("oracle,e2e", help="через запятую"),

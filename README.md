@@ -129,11 +129,30 @@ uv run kznorms search "ширина лестничного марша" --mode hy
 Serve the model with [llama.cpp](https://github.com/ggml-org/llama.cpp) and ask:
 
 ```bash
-llama-server -m Qwen3-4B-Instruct-2507-Q4_K_M.gguf [--lora artifacts/lora/full_v2-f16.gguf] \
+llama-server -m Qwen3-4B-Instruct-2507-Q4_K_M.gguf [--lora artifacts/lora/full_r16-f16.gguf] \
   -c 8192 -ngl 99 --host 127.0.0.1 --port 8085 --jinja
 uv run kznorms ask "Можно ли сделать вход в гардеробную прямо из спальни?"
 uv run kznorms ui                # Gradio → http://127.0.0.1:7860
+uv run kznorms serve             # HTTP API → http://127.0.0.1:8000/docs
 ```
+
+### HTTP API
+
+| endpoint | what it does |
+|---|---|
+| `POST /ask` `{"question": "...", "k": 5}` | retrieval → LLM → verify; returns status, answer, citations, `verified`, `problems`, retrieved clauses, per-stage timings |
+| `POST /search` `{"question": "...", "k": 5, "mode": "hybrid_rerank"}` | retrieval only, no LLM |
+| `GET /health` | service is up, which model is served |
+
+```bash
+curl -X POST http://127.0.0.1:8000/ask -H "Content-Type: application/json" \
+  -d '{"question": "Какой ширины коридор в коридорном доме длиной 50 м?"}'
+```
+
+The response is the same Pydantic schema the pipeline uses internally, so a client gets
+`verified: false` plus the list of problems whenever a quote or a number did not check out.
+Retrieval models load once at startup; requests to the GPU are serialized (one card), the
+LLM being down returns `503` with a readable message, input is validated (`422`).
 
 Full pipeline:
 
@@ -145,7 +164,7 @@ uv run kznorms train-llm                                # QLoRA (WSL2/Linux)
 uv run kznorms export --run <run>                       # LoRA → GGUF
 uv run kznorms eval-generation --model base|ft          # oracle / e2e
 uv run kznorms judge --tags <report>,<report>           # LLM judge (Qwen3-8B)
-uv run pytest                                           # 96 tests
+uv run pytest                                           # 104 tests
 ```
 
 ## Repository layout
@@ -161,7 +180,7 @@ src/kznorms/
   synth/         teacher, question generation, contexts, answers, filter
   train/         Unsloth QLoRA, GGUF export
   eval/          retrieval and generation metrics, LLM judge
-  api/           Gradio UI
+  api/           FastAPI service (/ask, /search, /health) and Gradio UI
 scripts/         overnight runs (synthetic data, training)
 docs/HANDOFF.md  full engineering log: every decision, failure and measurement
 ```
