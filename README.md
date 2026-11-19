@@ -31,33 +31,44 @@ code — not the model — decides whether the quote is real.
 
 ## Results
 
-Test set: 67 questions (57 answerable, 10 unanswerable) on **documents never seen in
-training** (split by document groups, see below). *oracle* — the gold clause is guaranteed
-to be in the context among distractors; *e2e* — full pipeline with real retrieval.
+Test set: 183 questions (147 answerable, 36 unanswerable) on **documents never seen in
+training** (split by document groups, see below). Every reference answer and gold clause
+was cross-checked against the code text; unanswerable questions were checked against the
+whole corpus (9,682 clauses) and many are *near-miss traps*: a clause on the same topic but
+for another building type or another parameter. *oracle* — the gold clause is guaranteed to
+be in the context among distractors; *e2e* — full pipeline with real retrieval.
 
 | oracle / e2e | Qwen3-4B base (prompt v4) | + QLoRA, data v1 | + QLoRA, data v2 |
 |---|---|---|---|
-| quotes pass verification | 0.84 / 0.89 | 0.97 / 0.97 | **0.97 / 1.00** |
-| correct `answered` status when gold is present | 0.89 / 0.88 | 0.95 / 0.95 | **0.96 / 0.98** |
-| numbers from the reference answer present | **0.83 / 0.88** | 0.75 / 0.77 | 0.80 / 0.69 |
-| LLM judge: correct | **0.53 / 0.51** | 0.47 / 0.42 | 0.47 / 0.39 |
-| LLM judge: wrong | **0.07 / 0.09** | 0.09 / 0.12 | 0.12 / 0.11 |
-| median answer length, chars | 242 | 108 | 104 |
+| quotes pass verification | 0.84 / 0.81 | **0.97 / 0.95** | 0.92 / 0.97 |
+| honest `not_found` on unanswerable questions | 0.78 / 0.78 | **0.89 / 0.89** | 0.83 / 0.83 |
+| correct `answered` status when gold is present | 0.85 / 0.80 | 0.92 / 0.92 | **0.93 / 0.95** |
+| numbers from the reference answer present | **0.81 / 0.78** | 0.64 / 0.67 | 0.58 / 0.55 |
+| LLM judge: correct | **0.47 / 0.46** | 0.44 / 0.45 | 0.40 / 0.36 |
+| LLM judge: wrong | **0.07 / 0.09** | 0.07 / 0.11 | 0.12 / 0.13 |
+| median answer length, chars | 240 | 108 | 100 |
 
-Retrieval on the test documents (58 answerable questions): Hit@5 — BM25 0.74, BGE-M3 0.93, hybrid (RRF) 0.95,
-**hybrid + reranker 1.00**, MRR@10 0.88.
+Retrieval on the same test set (147 answerable questions): Hit@5 — BM25 0.80, BGE-M3 0.95,
+hybrid (RRF) 0.94, **hybrid + reranker 0.99**, MRR@10 0.94.
 
 **What the numbers say — honestly:**
-- Fine-tuning reliably fixes **format discipline**: verbatim quotes go from 84–89% to 97–100%,
-  statuses become calibrated. This is the part a downstream system can rely on.
-- On **meaning** (LLM judge), a well-prompted base model is as good or slightly better:
-  the fine-tuned model shortens answers and occasionally picks a neighbouring clause.
-  The differences between columns are 1–4 questions out of 57 — within noise (SE ≈ 0.065).
-- An early "fine-tuned model is too terse" regression turned out to come mostly from the
-  **prompt**, not the training data: re-evaluating the same adapter with prompt v4 doubled
-  answer length and raised number recall from 0.59 to 0.75.
-- The bottleneck is now **evaluation**, not the model: 57 questions cannot separate these
-  models. Next step is a 150–200 question test set written by engineers.
+- Fine-tuning reliably fixes **discipline**: verbatim quotes go from 81–84% to 95–97%,
+  honest refusals from 78% to 89%, statuses become calibrated. This is the part a
+  downstream system can rely on.
+- On **meaning** (LLM judge), fine-tuning does **not** help. Paired comparison on the same
+  questions: base vs data v1 — 22 vs 21 questions in e2e (no difference, sign test p = 1.0).
+  The fine-tuned models answer the first requirement and drop the rest: "vents are needed
+  in the basement" without "at least 1/400 of the floor area". That is why number recall
+  falls from 0.81 to 0.64.
+- **Iteration 2 made it worse, not better.** Data v2 (teacher answers with a stricter prompt)
+  lost to data v1 in e2e: 19 vs 6 questions, p = 0.015. A good example of why every data
+  change needs a re-measurement rather than an assumption.
+- The early test set (57 questions) had hidden this: there base e2e verify looked like 0.89,
+  on 147 questions it is 0.81. Small test sets flatter.
+- Practical conclusion: **base model + prompt v4 + `verify`** gives the most complete
+  answers; the data-v1 adapter is the choice when strict format and refusals matter more
+  than completeness. Next step is teacher answers that keep every number and condition of
+  the clause, then re-training.
 
 ## Architecture
 
@@ -157,8 +168,9 @@ docs/HANDOFF.md  full engineering log: every decision, failure and measurement
 
 ## Limitations
 
-- The test set is small (57 answerable questions) and partly written by someone who had seen
-  the clauses — it is easier than real engineer questions.
+- Test questions were written by someone who had seen the clauses — they are easier for
+  retrieval than real engineer questions. Reference answers were cross-checked against
+  the code text automatically; a hand-checked random sample is the next step.
 - The LLM judge is from the same model family (Qwen) as the student and teacher; verdicts
   are spot-checked by hand.
 - Answers are in Russian only; questions in Kazakh are understood through multilingual
@@ -168,8 +180,10 @@ docs/HANDOFF.md  full engineering log: every decision, failure and measurement
 
 ## Roadmap
 
-1. Test set of 150–200 questions written without looking at the clauses; then ablations
-   (500/1k/2k/4k examples, LoRA rank 8/16/32).
+1. Synthetic data v3: teacher answers that must keep every number and condition of the
+   clause (checked by code against the clause text), then re-training and ablations
+   (500/1k/2k/4k examples, LoRA rank 8/16/32). Add 20–30 test questions written without
+   looking at the clauses.
 2. **Checking a project fragment against the codes**: take a paragraph of an explanatory note
    or a room schedule, extract the checkable claims, retrieve the relevant clauses, report
    violations with citations.
