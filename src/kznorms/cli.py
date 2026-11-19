@@ -285,7 +285,10 @@ def qa_check() -> None:
 
     ans = [it for it in items if it.answerable]
     docs = Counter(g.split(":")[0] for it in ans for g in it.gold_clause_ids[:1])
-    print(f"{QA_TEST}: {len(items)} вопросов, проверено руками: {sum(it.verified for it in items)}")
+    print(
+        f"{QA_TEST}: {len(items)} вопросов, проверено руками: {sum(it.verified for it in items)}, "
+        f"сверено LLM: {sum(it.checked == 'llm' for it in items)}"
+    )
     print(
         f"  с ответом {len(ans)}, без ответа {len(items) - len(ans)} "
         f"({(len(items) - len(ans)) / max(len(items), 1):.0%}, цель ≈25%)"
@@ -309,18 +312,34 @@ def qa_check() -> None:
 
 
 @app.command("qa-review")
-def qa_review(all_: bool = typer.Option(False, "--all", help="включая уже проверенные")) -> None:
-    """Пройти черновые вопросы руками: gold-пункты + что нашёл поиск → подтвердить/поправить."""
+def qa_review(
+    all_: bool = typer.Option(False, "--all", help="включая уже проверенные"),
+    sample: int = typer.Option(
+        0, help="выборочная проверка: N случайных вопросов, сверенных LLM (0 — все черновики)"
+    ),
+    seed: int = typer.Option(0, help="seed выборки — чтобы выборку можно было повторить"),
+) -> None:
+    """Пройти черновые вопросы руками: gold-пункты + что нашёл поиск → подтвердить/поправить.
+
+    `--sample 20` — выборочная проверка набора, сверенного LLM: если в случайной выборке
+    почти нет ошибок, сверке можно доверять (так проверяют разметку и в исследованиях).
+    """
+    import random
+
     from kznorms.eval.eval_retrieval import load_items, save_items
     from kznorms.retrieval.retriever import Retriever
 
     items = load_items()
     todo = [it for it in items if all_ or not it.verified]
+    if sample:
+        pool = [it for it in todo if it.checked == "llm"]
+        todo = random.Random(seed).sample(pool, min(sample, len(pool)))
     if not todo:
         print("[green]все вопросы проверены[/green]")
         return
     r = Retriever()
     r.warmup("hybrid_rerank")
+    fixed: set[str] = set()  # что пришлось исправить — для выборочной проверки это и есть ошибки
     help_ = (
         "[y] верно  [g] заменить gold  [a] заменить ответ  [u] без ответа  "
         "[d] удалить  [s] пропустить  [q] выйти"
@@ -350,22 +369,27 @@ def qa_review(all_: bool = typer.Option(False, "--all", help="включая у�
                     print(f"[red]нет таких пунктов: {unknown}[/red]")
                     continue
                 it.gold_clause_ids, it.answerable = ids, True
+                fixed.add(it.id)
                 continue  # покажем меню снова: можно сразу подтвердить
             elif cmd == "a":
                 it.gold_answer = typer.prompt("эталонный ответ")
+                fixed.add(it.id)
                 continue
             elif cmd == "u":
                 it.answerable, it.gold_clause_ids, it.gold_answer = False, [], ""
+                fixed.add(it.id)
                 continue
             elif cmd == "d":
                 items.remove(it)
-            elif cmd == "q":
-                save_items(items)
-                return
-            elif cmd != "s":
+                fixed.add(it.id)
+            elif cmd != "q" and cmd != "s":
                 continue
             break
         save_items(items)  # после каждого вопроса — ничего не потеряется при выходе
+        if cmd == "q":
+            break
+    if sample:
+        print(f"выборка: {len(todo)} вопросов, исправлено {len(fixed)}: {sorted(fixed)}")
     print("[green]готово[/green]")
 
 
